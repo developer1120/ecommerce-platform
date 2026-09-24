@@ -98,3 +98,103 @@ export function userForToken(token: string | null | undefined): User | undefined
   const user = users().find((candidate) => candidate.id === session.userId);
   return user ? publicUser(user) : undefined;
 }
+
+/** An account by its id, for server code that needs to reach a shopper (say, to email them). */
+export function findUser(userId: string): User | undefined {
+  const user = users().find((candidate) => candidate.id === userId);
+  return user ? publicUser(user) : undefined;
+}
+
+/** Every account, without passwords, for server code that reports on customers. */
+export function listUsers(): User[] {
+  return users().map(publicUser);
+}
+
+/** Recent failed sign-ins per email, oldest first. */
+const failures = new Map<string, number[]>();
+
+function recentFailures(email: string): number[] {
+  const cutoff = Date.now() - LOCKOUT_MS;
+  const recent = (failures.get(email) ?? []).filter((time) => time > cutoff);
+  failures.set(email, recent);
+  return recent;
+}
+
+export interface SignUpInput {
+  name: string;
+  email: string;
+  password: string;
+  remember: boolean;
+}
+
+export function signUp(input: SignUpInput, options?: RequestOptions): Promise<AuthResult> {
+  return simulateRequest(async () => {
+    const email = normalizeEmail(input.email);
+    const problem = validateName(input.name) ?? validateEmail(email) ?? validateNewPassword(input.password, email);
+    if (problem) throw new ApiError('VALIDATION', problem);
+    if (users().some((user) => user.email === email)) {
+      throw new ApiError('CONFLICT', 'An account with that email already exists. Sign in instead.');
+    }
+    const salt = randomHex(16);
+    const user: StoredUser = {
+      id: `usr_${randomHex(8)}`,
+      email,
+      name: input.name.trim().replace(/\s+/g, ' '),
+      createdAt: new Date().toISOString(),
+      role: 'customer',
+      salt,
+      passwordHash: await hashPassword(input.password, salt),
+    };
+    writeJson(USERS_KEY, [...users(), user]);
+    return startSession(user, input.remember);
+  }, options);
+}
+
+export interface SignInInput {
+  email: string;
+  password: string;
+  remember: boolean;
+}
+
+/** A fixed salt for unknown emails, so a missing account takes as long to reject as a wrong password. */
+const DECOY_SALT = '00000000000000000000000000000000';
+
+export function signIn(input: SignInInput, options?: RequestOptions): Promise<AuthResult> {
+  return simulateRequest(async () => {
+    const email = normalizeEmail(input.email);
+    if (recentFailures(email).length >= MAX_FAILED_SIGN_INS) {
+      throw new ApiError('RATE_LIMITED', 'Too many attempts. Wait 15 minutes, then try again.');
+    }
+    await ensureDemoAdmin(email);
+    const user = users().find((candidate) => candidate.email === email);
+    const hash = await hashPassword(input.password, user?.salt ?? DECOY_SALT);
+    if (!user || !constantTimeEqual(hash, user.passwordHash)) {
+      failures.set(email, [...recentFailures(email), Date.now()]);
+      throw new ApiError('UNAUTHORIZED', "That email and password don't match. Try again, or create an account.");
+    }
+    failures.delete(email);
+    return startSession(user, input.remember);
+  }, options);
+}
+
+export function getSession(token: string, options?: RequestOptions): Promise<User> {
+  return simulateRequest(() => {
+    const user = userForToken(token);
+    if (!user) throw new ApiError('UNAUTHORIZED', 'Your session has ended. Sign in again.');
+    return user;
+  }, options);
+}
+
+export function signOut(token: string, options?: RequestOptions): Promise<void> {
+  return simulateRequest(() => {
+    writeJson(
+      SESSIONS_KEY,
+      sessions().filter((session) => session.token !== token),
+    );
+  }, options);
+}
+
+/** Forgets failed sign-in counts. Tests call this between cases. */
+export function resetAuthServer(): void {
+  failures.clear();
+}
