@@ -153,3 +153,158 @@ describe('CartDrawer', () => {
 
 describe('Add to bag on the product page', () => {
   async function renderProduct(path: string) {
+    const view = renderRoute(path);
+    await screen.findByRole('heading', { level: 1 });
+    return view;
+  }
+
+  it('adds the chosen quantity, confirms with a toast and opens the bag from it', async () => {
+    await renderProduct('/product/oak-serving-board?variant=gw-board-larg');
+    const stepper = screen.getByRole('group', { name: 'Quantity of Oak serving board, Large' });
+    await userEvent.click(within(stepper).getByRole('button', { name: 'Increase' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add to bag' }));
+
+    expect(screen.getByRole('button', { name: 'Bag, 2 items' })).toBeInTheDocument();
+    const toasts = screen.getByRole('region', { name: 'Notifications' });
+    expect(toasts).toHaveTextContent('Added to your bag');
+    expect(toasts).toHaveTextContent('2 × Oak serving board, Large');
+    expect(screen.getByText('2 already in your bag.')).toBeInTheDocument();
+    expect(stepper).toHaveTextContent('1');
+
+    await userEvent.click(within(toasts).getByRole('button', { name: 'View bag' }));
+    expect(screen.getByRole('dialog', { name: /your bag/i })).toBeInTheDocument();
+  });
+
+  it('limits the quantity to what is left and explains when the bag holds it all', async () => {
+    await renderProduct('/product/hand-thrown-bud-vase'); // Chalk: 3 in stock
+    const stepper = screen.getByRole('group', { name: /quantity of hand-thrown bud vase/i });
+    const increase = within(stepper).getByRole('button', { name: 'Increase' });
+    await userEvent.click(increase);
+    await userEvent.click(increase);
+    await userEvent.click(increase);
+    expect(stepper).toHaveTextContent('3');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add to bag' }));
+    expect(screen.getByText('You have all 3 we can offer in your bag.')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add to bag' }));
+    expect(screen.getByRole('region', { name: 'Notifications' })).toHaveTextContent('No more available');
+    expect(screen.getByRole('button', { name: 'Bag, 3 items' })).toBeInTheDocument();
+  });
+
+  it('offers no add button for a sold-out variant', async () => {
+    await renderProduct('/product/wool-boucle-cushion');
+    expect(screen.queryByRole('button', { name: 'Add to bag' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sold out' })).toBeDisabled();
+  });
+});
+
+describe('QuantityStepper', () => {
+  function Harness({ max }: { max: number }) {
+    const [value, setValue] = useState(1);
+    return <QuantityStepper value={value} onChange={setValue} max={max} label="Quantity" />;
+  }
+
+  it('stays within its limits and keeps focus at a limit', async () => {
+    render(<Harness max={2} />);
+    const decrease = screen.getByRole('button', { name: 'Decrease' });
+    const increase = screen.getByRole('button', { name: 'Increase' });
+    expect(decrease).toHaveAttribute('aria-disabled', 'true');
+
+    await userEvent.click(increase);
+    await userEvent.click(increase);
+    expect(screen.getByRole('group', { name: 'Quantity' })).toHaveTextContent('2');
+    expect(increase).toHaveAttribute('aria-disabled', 'true');
+    expect(increase).toHaveFocus();
+  });
+});
+
+describe('FreeShippingMeter', () => {
+  it('says how much more is needed and shows progress', () => {
+    render(<FreeShippingMeter subtotal={5000} />);
+    expect(screen.getByText('$25.00')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Progress to free shipping' })).toHaveAttribute('aria-valuenow', '67');
+  });
+
+  it('celebrates reaching the threshold', () => {
+    render(<FreeShippingMeter subtotal={9000} />);
+    expect(screen.getByText('Your order ships free.')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+  });
+});
+
+describe('toasts', () => {
+  function Trigger({ title = 'Saved', withAction = false }: { title?: string; withAction?: boolean }) {
+    const { toast } = useToast();
+    const [clicked, setClicked] = useState(false);
+    return (
+      <>
+        <button
+          onClick={() =>
+            toast({ title, ...(withAction && { action: { label: 'Do it', onClick: () => setClicked(true) } }) })
+          }
+        >
+          Show {title}
+        </button>
+        {clicked && <p>Action ran</p>}
+      </>
+    );
+  }
+
+  const region = () => screen.getByRole('region', { name: 'Notifications' });
+
+  it('hides itself after a while', () => {
+    vi.useFakeTimers();
+    render(
+      <ToastProvider>
+        <Trigger />
+      </ToastProvider>,
+    );
+    act(() => screen.getByRole('button', { name: 'Show Saved' }).click());
+    expect(region()).toHaveTextContent('Saved');
+    act(() => vi.advanceTimersByTime(DEFAULT_TOAST_DURATION));
+    expect(region()).not.toHaveTextContent('Saved');
+  });
+
+  it('waits while hovered', () => {
+    vi.useFakeTimers();
+    render(
+      <ToastProvider>
+        <Trigger />
+      </ToastProvider>,
+    );
+    act(() => screen.getByRole('button', { name: 'Show Saved' }).click());
+    const toast = within(region()).getByRole('listitem');
+    act(() => {
+      toast.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
+    act(() => vi.advanceTimersByTime(DEFAULT_TOAST_DURATION * 2));
+    expect(region()).toHaveTextContent('Saved');
+  });
+
+  it('runs its action, then dismisses itself', async () => {
+    render(
+      <ToastProvider>
+        <Trigger withAction />
+      </ToastProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Show Saved' }));
+    await userEvent.click(within(region()).getByRole('button', { name: 'Do it' }));
+    expect(screen.getByText('Action ran')).toBeInTheDocument();
+    expect(within(region()).queryByRole('listitem')).not.toBeInTheDocument();
+  });
+
+  it(`can be dismissed and keeps only the newest ${MAX_TOASTS}`, async () => {
+    render(
+      <ToastProvider>
+        <Trigger />
+      </ToastProvider>,
+    );
+    const show = screen.getByRole('button', { name: 'Show Saved' });
+    for (let i = 0; i < MAX_TOASTS + 2; i++) await userEvent.click(show);
+    expect(within(region()).getAllByRole('listitem')).toHaveLength(MAX_TOASTS);
+
+    await userEvent.click(within(region()).getAllByRole('button', { name: 'Dismiss notification' })[0]!);
+    expect(within(region()).getAllByRole('listitem')).toHaveLength(MAX_TOASTS - 1);
+  });
+});
