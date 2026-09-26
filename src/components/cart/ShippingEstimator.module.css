@@ -1,0 +1,116 @@
+.estimator {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.label {
+  padding: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.select {
+  position: relative;
+}
+
+.select select {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 2.5rem 0 var(--space-4);
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  appearance: none;
+  cursor: pointer;
+}
+
+.select select:hover {
+  border-color: var(--color-ink-subtle);
+}
+
+.select > svg {
+  position: absolute;
+  top: 50%;
+  right: var(--space-4);
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.methods {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.methods > .label {
+  margin-bottom: var(--space-1);
+}
+
+.method {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.method:hover {
+  border-color: var(--color-line-strong);
+}
+
+.method:has(:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-sunken);
+}
+
+.method input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.methodText {
+  display: grid;
+  flex: 1;
+}
+
+.methodName {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.methodWhen {
+  color: var(--color-ink-muted);
+  font-size: var(--text-xs);
+}
+
+.methodPrice {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.was {
+  margin-right: var(--space-1);
+  color: var(--color-ink-subtle);
+  font-weight: 500;
+}
+
+.hint {
+  color: var(--color-ink-muted);
+  font-size: var(--text-xs);
+}
