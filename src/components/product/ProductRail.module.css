@@ -1,0 +1,72 @@
+.rail {
+  display: grid;
+  gap: var(--space-5);
+  /* As a grid item it would otherwise grow to fit its scrolling row and widen the page. */
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-3xl);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.more > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+/* Four across on wide screens; a swipeable row on narrow ones. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 960px) {
+  .grid {
+    grid-auto-columns: minmax(13rem, 46%);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    padding-bottom: var(--space-2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+  }
+
+  .grid > * {
+    scroll-snap-align: start;
+  }
+}

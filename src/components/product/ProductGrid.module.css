@@ -1,0 +1,50 @@
+/* The grid sizes itself to its own width, so it fits beside a filter sidebar or full width alike. */
+.container {
+  container-type: inline-size;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cell {
+  display: grid;
+  min-width: 0;
+}
+
+.cell[data-feature] {
+  grid-column: span 2;
+}
+
+/* Let the feature card's art fill the extra height of its double row. */
+.cell[data-feature] > * {
+  display: flex;
+  flex-direction: column;
+}
+
+.cell[data-feature] > * > a {
+  flex: 1;
+}
+
+@container (min-width: 40rem) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .cell[data-feature] {
+    grid-row: span 2;
+  }
+}
+
+@container (min-width: 60rem) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
