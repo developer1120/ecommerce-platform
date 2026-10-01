@@ -1,0 +1,25 @@
+.price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.from {
+  color: var(--color-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.current {
+  font-weight: 700;
+}
+
+.current[data-sale] {
+  color: var(--color-sale-text);
+}
+
+.was {
+  color: var(--color-ink-subtle);
+  font-size: var(--text-sm);
+}
