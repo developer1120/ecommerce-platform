@@ -1,0 +1,62 @@
+.notify {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1.5px dashed var(--color-line-strong);
+}
+
+.notifyTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+
+.notifyTitle > svg,
+.done > svg,
+.banner > svg {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.notifyRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.notifyRow > button {
+  min-height: 3rem;
+}
+
+.small {
+  color: var(--color-ink-muted);
+  font-size: var(--text-xs);
+}
+
+.done,
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--tint-sage);
+  font-size: var(--text-sm);
+}
+
+.banner {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .notifyRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
