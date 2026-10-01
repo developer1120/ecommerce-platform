@@ -99,3 +99,104 @@ describe('page errors', () => {
         const here = route.path ? `${path}/${route.path}` : path;
         const covered = guarded || Boolean(route.errorElement);
         if (route.element && !route.children && !covered) unguarded.push(here || '/');
+        if (route.children) walk(route.children, covered, here);
+      }
+    };
+    walk(routes[0]!.children!, false, '');
+    expect(unguarded).toEqual([]);
+    expect(routes[0]!.errorElement).toBeTruthy();
+  });
+
+  it('draws its own frame when the layout itself fails', async () => {
+    quietErrors();
+    const Broken = () => {
+      throw new Error('Header broke');
+    };
+    const router = createMemoryRouter([{ ...routes[0]!, element: <Broken /> }], { initialEntries: ['/'] });
+    render(
+      <AppProviders>
+        <RouterProvider router={router} />
+      </AppProviders>,
+    );
+    expect(await screen.findByRole('heading', { level: 1, name: 'Something went wrong on this page' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Departments' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the last-resort boundary', () => {
+  it('catches what nothing else did and offers a reload', async () => {
+    const user = userEvent.setup();
+    quietErrors();
+    const Broken = () => {
+      throw new Error('Providers broke');
+    };
+    render(
+      <AppErrorBoundary>
+        <Broken />
+      </AppErrorBoundary>,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'Something went wrong' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Reload Tanelt' }));
+    expect(reloadPage).toHaveBeenCalled();
+  });
+
+  it('stays out of the way when all is well', () => {
+    render(
+      <AppErrorBoundary>
+        <p>All good</p>
+      </AppErrorBoundary>,
+    );
+    expect(screen.getByText('All good')).toBeInTheDocument();
+  });
+});
+
+describe('error helpers', () => {
+  it('tells failed downloads apart from bugs', () => {
+    expect(isChunkLoadError(new TypeError('Failed to fetch dynamically imported module: /a.js'))).toBe(true);
+    expect(isChunkLoadError(new TypeError('error loading dynamically imported module'))).toBe(true);
+    expect(isChunkLoadError(new TypeError('Importing a module script failed.'))).toBe(true);
+    expect(isChunkLoadError(Object.assign(new Error('x'), { name: 'ChunkLoadError' }))).toBe(true);
+    expect(isChunkLoadError(new TypeError("Cannot read properties of undefined (reading 'name')"))).toBe(false);
+    expect(isChunkLoadError('Failed to fetch dynamically imported module')).toBe(false);
+  });
+
+  it('describes any thrown value', () => {
+    expect(describeError(new RangeError('too far'))).toBe('RangeError: too far');
+    expect(describeError('plain text')).toBe('plain text');
+    expect(describeError({ code: 1 })).toBe('Unknown error');
+  });
+});
+
+describe('not found', () => {
+  it('turns a missing address into a search', () => {
+    expect(searchFromPath('/products/linen-throw')).toBe('linen throw');
+    expect(searchFromPath('/shop/Wool_Beanie.html')).toBe('wool beanie');
+    expect(searchFromPath('/caf%C3%A9-mugs/')).toBe('café mugs');
+    expect(searchFromPath('/%E0%A4%A')).toBeNull();
+    expect(searchFromPath('/x')).toBeNull();
+    expect(searchFromPath('/2024')).toBeNull();
+    expect(searchFromPath('/')).toBeNull();
+  });
+
+  it('names the missing address and offers a way on', async () => {
+    const user = userEvent.setup();
+    const { router } = renderRoute('/products/linen-throw');
+    expect(main().getByRole('heading', { level: 1, name: 'This page has wandered off' })).toBeInTheDocument();
+    expect(main().getByText('/products/linen-throw')).toBeInTheDocument();
+    expect(main().getByText('Were you looking for this?')).toBeInTheDocument();
+    const box = within(main().getByRole('search', { name: 'Search the shop' })).getByRole('searchbox');
+    expect(box).toHaveValue('linen throw');
+    const departments = main().getByRole('navigation', { name: 'Departments to try' });
+    expect(within(departments).getByRole('link', { name: 'Apparel' })).toHaveAttribute('href', '/shop/apparel');
+
+    await user.click(within(main().getByRole('search')).getByRole('button', { name: 'Search' }));
+    expect(router.state.location.pathname).toBe('/search');
+    expect(router.state.location.search).toBe('?q=linen%20throw');
+  });
+
+  it('is also what an unknown department shows', () => {
+    renderRoute('/shop/garden');
+    expect(main().getByRole('heading', { level: 1, name: 'This page has wandered off' })).toBeInTheDocument();
+    expect(within(main().getByRole('search')).getByRole('searchbox')).toHaveValue('garden');
+  });
+});
