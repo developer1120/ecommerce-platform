@@ -98,3 +98,103 @@ describe('reviews server', () => {
       card: { brand: 'visa', last4: '4242', expMonth: 4, expYear: 2029, name: 'Ada' },
       sessionToken: token,
     });
+    expect(await submitReview(token, mask.id, GOOD)).toMatchObject({ verifiedPurchase: true, author: 'Ada L.' });
+    expect((await submitReview(token, tee.id, { ...GOOD, title: 'Nice tee' })).verifiedPurchase).toBe(false);
+  });
+
+  it('folds shopper reviews into the rating everywhere', async () => {
+    const { token } = await signedIn();
+    const before = liveSummary(mask);
+    await submitReview(token, mask.id, { ...GOOD, rating: 1 });
+    expect(liveSummary(mask).count).toBe(before.count + 1);
+    expect((await getProduct('rose-clay-mask')).rating.count).toBe(234);
+  });
+
+  it('pages and filters written reviews', async () => {
+    const all = await listReviews(mask.id, { limit: 2 });
+    expect(all.items).toHaveLength(2);
+    expect(all.total).toBeGreaterThan(2);
+    const fives = await listReviews(mask.id, { stars: 5, limit: 50 });
+    expect(fives.items.every((review) => review.rating === 5)).toBe(true);
+  });
+});
+
+describe('reviews on the product page', () => {
+  // The section appears once the product has loaded.
+  const reviews = () => screen.findByRole('region', { name: 'Reviews' });
+  const reviewsNow = () => screen.getByRole('region', { name: 'Reviews' });
+
+  it('summarises the ratings and links the rating at the top to them', async () => {
+    renderRoute('/product/rose-clay-mask');
+    const section = await screen.findByRole('region', { name: 'Reviews' });
+    expect(await within(section).findByText('4.6')).toBeInTheDocument();
+    expect(within(section).getByText('233 ratings')).toBeInTheDocument();
+    expect(within(section).getByRole('list', { name: 'Ratings by stars' }).children).toHaveLength(5);
+    expect(screen.getByRole('link', { name: /rated 4\.6 out of 5/i })).toHaveAttribute('href', '#reviews');
+  });
+
+  it('filters by star level from the bars and clears again', async () => {
+    renderRoute('/product/rose-clay-mask');
+    await within(await reviews()).findAllByRole('article');
+    const fiveStars = within(await reviews()).getByRole('button', { name: /5-star ratings/ });
+    await userEvent.click(fiveStars);
+    expect(fiveStars).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(within(reviewsNow()).getByText(/written reviews? with 5 stars/)).toBeInTheDocument());
+    for (const article of within(await reviews()).getAllByRole('article')) {
+      expect(within(article).getByText('5 out of 5 stars')).toBeInTheDocument();
+    }
+    await userEvent.click(fiveStars);
+    expect(fiveStars).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('counts a helpful vote once per device', async () => {
+    renderRoute('/product/rose-clay-mask');
+    const [first] = await within(await reviews()).findAllByRole('article');
+    const helpful = within(first!).getByRole('button', { name: /helpful/i });
+    const before = Number(/\((\d+)\)/.exec(helpful.textContent!)![1]);
+    await userEvent.click(helpful);
+    await waitFor(() => expect(within(first!).getByRole('button', { name: /helpful/i })).toHaveTextContent(`(${before + 1})`));
+    expect(within(first!).getByRole('button', { name: /helpful/i })).toBeDisabled();
+  });
+
+  it('invites a guest to sign in to write one', async () => {
+    renderRoute('/product/rose-clay-mask');
+    expect(await within(await reviews()).findByRole('link', { name: 'Sign in to write a review' })).toHaveAttribute(
+      'href',
+      '/account/sign-in?next=%2Fproduct%2Frose-clay-mask%23reviews',
+    );
+  });
+
+  it('lets a signed-in shopper write a review that appears first', async () => {
+    await signedIn();
+    renderRoute('/product/organic-cotton-tee');
+    await userEvent.click(await within(await reviews()).findByRole('button', { name: 'Write a review' }));
+    const form = within(await reviews()).getByRole('form', { name: 'Write a review' });
+
+    await userEvent.click(within(form).getByRole('button', { name: 'Post review' }));
+    expect(within(form).getByRole('group', { name: 'Your rating' })).toHaveAccessibleDescription('Choose a star rating');
+
+    await userEvent.click(within(form).getByRole('radio', { name: '4 stars, Very good' }));
+    await userEvent.type(within(form).getByRole('textbox', { name: 'Title' }), 'Heavy and soft');
+    await userEvent.type(within(form).getByRole('textbox', { name: 'Your review' }), 'Thick cotton that keeps its shape wash after wash.');
+    await userEvent.selectOptions(within(form).getByRole('combobox', { name: /how does it fit/i }), 'small');
+    await userEvent.click(within(form).getByRole('button', { name: 'Post review' }));
+
+    expect(await screen.findByText('Thanks for your review')).toBeInTheDocument();
+    const [newest] = await within(await reviews()).findAllByRole('article');
+    expect(newest).toHaveTextContent('Heavy and soft');
+    expect(newest).toHaveTextContent('Ada L.');
+    expect(newest).toHaveTextContent('Fit: Runs small');
+  });
+
+  it('shows five reviews at a time, with more on request', async () => {
+    // A product with six written reviews, so there is exactly one more to show.
+    const product = CATALOG.find((candidate) => seedReviews(candidate).length > 5)!;
+    renderRoute(`/product/${product.slug}`);
+    expect(await within(await reviews()).findAllByRole('article')).toHaveLength(5);
+
+    await userEvent.click(within(await reviews()).getByRole('button', { name: 'Show more reviews' }));
+    await waitFor(() => expect(within(reviewsNow()).getAllByRole('article')).toHaveLength(6));
+    expect(within(reviewsNow()).queryByRole('button', { name: 'Show more reviews' })).not.toBeInTheDocument();
+  });
+});
