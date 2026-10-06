@@ -1,0 +1,13 @@
+.form {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 36rem;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  /* Lets the box shrink below the input's built-in width (20 characters), so the button stays inside narrow cards. */
+  grid-template-columns: minmax(0, 1fr);
+}
