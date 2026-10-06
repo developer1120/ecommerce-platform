@@ -105,3 +105,111 @@ export function ProductQuestions({ product }: { product: Product }) {
                       <h3 id={`question-${question.id}`} className={styles.question}>
                         <span className={styles.marker} aria-hidden="true">
                           Q
+                        </span>
+                        {question.question}
+                      </h3>
+                      <p className={styles.meta}>
+                        Asked by {question.askedBy} · {DATE.format(new Date(question.askedAt))}
+                      </p>
+                      <div className={styles.answer}>
+                        <span className={styles.marker} data-answer aria-hidden="true">
+                          A
+                        </span>
+                        <div>
+                          <p>{question.answer!.text}</p>
+                          <p className={styles.meta}>
+                            {question.answer!.by} · {DATE.format(new Date(question.answer!.answeredAt))}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.helpful}
+                        aria-pressed={voted.includes(question.id)}
+                        aria-label={`Helpful (${question.helpful}): ${question.question}`}
+                        disabled={voted.includes(question.id)}
+                        onClick={() => vote(question)}
+                      >
+                        <ThumbsUp aria-hidden="true" /> Helpful ({question.helpful})
+                      </button>
+                    </article>
+                  </li>
+                ))}
+              </ul>
+              {page.data.items.length < page.data.total && (
+                <Button variant="secondary" onClick={() => setLimit((current) => current + PAGE_SIZE)}>
+                  Show more questions
+                </Button>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {status === 'signed-in' ? (
+        <AskForm productId={product.id} onAsked={page.reload} />
+      ) : (
+        <p className={styles.signIn}>
+          <Link to={`/account/sign-in?next=${encodeURIComponent(`/product/${product.slug}#questions`)}`}>Sign in to ask a question</Link>
+        </p>
+      )}
+    </section>
+  );
+}
+
+function AskForm({ productId, onAsked }: { productId: string; onAsked: () => void }) {
+  const { token } = useAuth();
+  const { toast } = useToast();
+  const [text, setText] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const fieldId = useId();
+  const helpId = useId();
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    const invalid = validateQuestion(text);
+    if (invalid) {
+      setProblem(invalid);
+      return;
+    }
+    setSending(true);
+    try {
+      await askQuestion(token!, productId, text);
+      setText('');
+      setProblem(null);
+      toast({ title: 'Thanks for your question', description: "We'll answer within two working days. The answer will appear here." });
+      onAsked();
+    } catch (error) {
+      setProblem(isApiError(error) ? error.message : "We couldn't send your question. Try again in a moment.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <form className={styles.ask} onSubmit={handleSubmit} noValidate>
+      <label htmlFor={fieldId} className={styles.label}>
+        Ask a question
+      </label>
+      <textarea
+        id={fieldId}
+        className={styles.textarea}
+        rows={3}
+        value={text}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={helpId}
+        onChange={(event) => {
+          setText(event.target.value);
+          if (problem) setProblem(null);
+        }}
+      />
+      <p id={helpId} className={problem ? styles.error : styles.hint}>
+        {problem ?? `About sizing, care or materials. ${text.trim().length} / ${QUESTION_LIMITS.max}`}
+      </p>
+      <Button type="submit" variant="secondary" loading={sending}>
+        Send question
+      </Button>
+    </form>
+  );
+}

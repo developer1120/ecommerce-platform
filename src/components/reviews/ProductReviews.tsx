@@ -102,3 +102,108 @@ export function ProductReviews({ product }: { product: Product }) {
             {([5, 4, 3, 2, 1] as Stars[]).map((level) => {
               const count = summary.distribution[level - 1] ?? 0;
               const percent = summary.count ? Math.round((count / summary.count) * 100) : 0;
+              return (
+                <li key={level}>
+                  <button
+                    type="button"
+                    className={styles.bar}
+                    aria-pressed={stars === level}
+                    onClick={() => {
+                      setStars(stars === level ? undefined : level);
+                      setLimit(PAGE_SIZE);
+                    }}
+                  >
+                    <span className={styles.barLabel}>{level} ★</span>
+                    <span className={styles.barTrack} aria-hidden="true">
+                      <span className={styles.barFill} style={{ width: `${percent}%` }} />
+                    </span>
+                    <span className={styles.barCount}>{percent}%</span>
+                    <span className="visually-hidden">
+                      , {numberFormat.format(count)} {level}-star ratings. Show only these.
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <div className={styles.toolbar}>
+        {/* A polite live region, not role="status": the stock notice is the page's status. */}
+        <p className={styles.muted} aria-live="polite">
+          {page.data &&
+            (stars
+              ? `${page.data.total} written ${page.data.total === 1 ? 'review' : 'reviews'} with ${stars} stars`
+              : `${page.data.total} written ${page.data.total === 1 ? 'review' : 'reviews'}`)}
+        </p>
+        <label className={styles.sort}>
+          Sort
+          <select
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value as ReviewSort);
+              setLimit(PAGE_SIZE);
+            }}
+          >
+            {SORTS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {page.status === 'error' ? (
+        <LoadError error={page.error} onRetry={page.reload} subject="reviews" />
+      ) : !page.data ? (
+        <Spinner label="Loading reviews" />
+      ) : page.data.items.length === 0 ? (
+        <p className={styles.none}>No reviews with {stars} stars yet.</p>
+      ) : (
+        <>
+          <ul className={styles.list}>
+            {page.data.items.map((review) => (
+              <li key={review.id} className={styles.review}>
+                <article aria-labelledby={`review-${review.id}`}>
+                  <div className={styles.reviewHead}>
+                    <StarRow rating={review.rating} />
+                    <span className="visually-hidden">{review.rating} out of 5 stars</span>
+                    <h3 id={`review-${review.id}`} className={styles.reviewTitle}>
+                      {review.title}
+                    </h3>
+                  </div>
+                  <p className={styles.byline}>
+                    {review.author} · {DATE.format(new Date(review.createdAt))}
+                    {review.verifiedPurchase && (
+                      <Badge tone="success" className={styles.verified}>
+                        <BadgeCheck aria-hidden="true" /> Verified purchase
+                      </Badge>
+                    )}
+                  </p>
+                  <p className={styles.body}>{review.body}</p>
+                  {review.fit && <p className={styles.fit}>Fit: {FIT_LABELS[review.fit]}</p>}
+                  <button
+                    type="button"
+                    className={styles.helpful}
+                    aria-pressed={voted.includes(review.id)}
+                    disabled={voted.includes(review.id)}
+                    onClick={() => vote(review)}
+                  >
+                    <ThumbsUp aria-hidden="true" /> Helpful ({review.helpful})
+                  </button>
+                </article>
+              </li>
+            ))}
+          </ul>
+          {page.data.items.length < page.data.total && (
+            <Button variant="secondary" onClick={() => setLimit((value) => value + PAGE_SIZE)} loading={page.status === 'loading'}>
+              Show more reviews
+            </Button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
