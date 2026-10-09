@@ -102,3 +102,108 @@ describe('header search', () => {
     renderRoute('/');
     const input = await openSearch();
     await userEvent.type(input, 'oak');
+    await userEvent.keyboard('{Escape}');
+    expect(input).toHaveValue('');
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('combobox', { name: 'Search the shop' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Search' })).toHaveFocus();
+  });
+
+  it('closes when clicking outside the header', async () => {
+    renderRoute('/');
+    await openSearch();
+    await userEvent.click(screen.getByRole('heading', { level: 1 }));
+    expect(screen.queryByRole('combobox', { name: 'Search the shop' })).not.toBeInTheDocument();
+  });
+
+  it('offers popular searches and fills them in', async () => {
+    renderRoute('/');
+    const input = await openSearch();
+    await userEvent.click(screen.getByRole('button', { name: 'ceramic' }));
+    expect(input).toHaveValue('ceramic');
+    expect(await screen.findAllByRole('option')).not.toHaveLength(0);
+  });
+
+  it('lists recent searches, runs them, and clears them', async () => {
+    rememberSearch('wool');
+    const { router } = renderRoute('/');
+    await openSearch();
+    const recent = screen.getByRole('region', { name: /recent searches/i });
+    expect(within(recent).getByRole('button', { name: 'wool' })).toBeInTheDocument();
+
+    await userEvent.click(within(recent).getByRole('button', { name: 'Clear' }));
+    expect(screen.queryByRole('region', { name: /recent searches/i })).not.toBeInTheDocument();
+    expect(loadRecentSearches()).toEqual([]);
+
+    rememberSearch('oak');
+    await userEvent.keyboard('{Escape}');
+    await openSearch();
+    await userEvent.click(screen.getByRole('button', { name: 'oak' }));
+    expect(router.state.location.search).toBe('?q=oak');
+  });
+
+  it('closes the mobile menu when search opens', async () => {
+    renderRoute('/');
+    await userEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    await openSearch();
+    expect(screen.getByRole('button', { name: 'Open menu' })).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+describe('SearchPage', () => {
+  it('lists every match for the query in the URL', async () => {
+    renderRoute('/search?q=wool');
+    expect(screen.getByRole('heading', { level: 1, name: 'Results for “wool”' })).toBeInTheDocument();
+    expect(document.title).toBe('Search: wool · Tanelt');
+    const results = await screen.findByRole('region', { name: 'Search results' });
+    expect(within(results).getAllByRole('article')).toHaveLength(4);
+    expect(within(results).getByRole('status')).toHaveTextContent('4 products');
+  });
+
+  it('re-sorts results and keeps the query in the URL', async () => {
+    const { router } = renderRoute('/search?q=wool');
+    await screen.findByRole('region', { name: 'Search results' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort by' }), 'price-asc');
+    expect(router.state.location.search).toBe('?q=wool&sort=price-asc');
+    const names = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
+    expect(names[0]).toBe('Ribbed wool beanie');
+  });
+
+  it('suggests other searches when nothing matches', async () => {
+    renderRoute('/search?q=trampoline');
+    expect(await screen.findByRole('heading', { level: 2, name: 'No matches' })).toBeInTheDocument();
+    const popular = screen.getByRole('list', { name: 'Popular searches' });
+    expect(within(popular).getByRole('link', { name: 'linen' })).toHaveAttribute('href', '/search?q=linen');
+  });
+
+  it('prompts for a query when there is none', () => {
+    renderRoute('/search');
+    expect(screen.getByRole('heading', { level: 1, name: 'Search the shop' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Popular searches' })).toBeInTheDocument();
+  });
+
+  it('offers a retry when the search fails', async () => {
+    configureApi({ failureRate: 1 });
+    renderRoute('/search?q=oak');
+    expect(await screen.findByRole('alert')).toHaveTextContent("We couldn't load search results");
+  });
+});
+
+describe('useDebouncedValue', () => {
+  beforeEach(() => vi.useFakeTimers());
+
+  it('only passes a value on once it settles', () => {
+    const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 200), {
+      initialProps: { value: 'l' },
+    });
+    rerender({ value: 'li' });
+    act(() => vi.advanceTimersByTime(150));
+    rerender({ value: 'lin' });
+    act(() => vi.advanceTimersByTime(150));
+    expect(result.current).toBe('l');
+
+    act(() => vi.advanceTimersByTime(50));
+    expect(result.current).toBe('lin');
+  });
+});
