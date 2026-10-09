@@ -1,0 +1,31 @@
+/* Section headings: a glyph in the heading's own colour, sized to its text. */
+.icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  margin-right: 0.45em;
+  color: var(--color-ink-muted);
+  vertical-align: -0.12em;
+}
+
+.icon > svg {
+  width: 0.95em;
+  height: 0.95em;
+}
+
+/* Page titles: a solid badge in the primary color, which holds up on every header tint (lime would vanish on sage). */
+.badge {
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.3em;
+  border-radius: 30%;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  vertical-align: -0.08em;
+}
+
+.badge > svg {
+  width: 0.55em;
+  height: 0.55em;
+  stroke-width: 2.25;
+}
