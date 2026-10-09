@@ -124,3 +124,130 @@ export function SearchPanel({ id, onClose }: SearchPanelProps) {
             aria-autocomplete="list"
             aria-expanded={hasResults}
             aria-controls={listId}
+            aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+            autoComplete="off"
+            enterKeyHint="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          {loading && <Spinner className={styles.spinner} />}
+          <button type="button" className={styles.close} aria-label="Close search" onClick={onClose}>
+            <X aria-hidden="true" />
+          </button>
+        </div>
+
+        <p className="visually-hidden" role="status">
+          {typing && data
+            ? data.total === 0
+              ? `No products match ${term}`
+              : `${data.total} ${data.total === 1 ? 'product matches' : 'products match'}. Use the arrow keys to browse.`
+            : ''}
+        </p>
+
+        <ul id={listId} role="listbox" aria-label="Suggestions" className={styles.list} hidden={!hasResults}>
+          {suggestions.map((product, index) => (
+            <li
+              key={product.id}
+              id={optionId(index)}
+              role="option"
+              aria-selected={index === active}
+              className={styles.option}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActive(index)}
+              onClick={() => openProduct(product)}
+            >
+              <ProductArt art={product.art} className={styles.thumb} />
+              <span className={styles.optionText}>
+                <span className={styles.optionName}>
+                  <Highlighted text={product.name} query={term} />
+                </span>
+                <span className={styles.optionMeta}>
+                  {product.maker} · {product.type}
+                </span>
+              </span>
+              <span className={styles.optionPrice}>{formatMoney(priceRange(product).min)}</span>
+            </li>
+          ))}
+          {hasResults && data && (
+            <li
+              id={optionId(suggestions.length)}
+              role="option"
+              aria-selected={active === suggestions.length}
+              className={styles.seeAll}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActive(suggestions.length)}
+              onClick={() => submit(term)}
+            >
+              See all {data.total} {data.total === 1 ? 'result' : 'results'} for “{term}”
+              <ArrowRight aria-hidden="true" />
+            </li>
+          )}
+        </ul>
+
+        {typing && data && data.total === 0 && !loading && (
+          <p className={styles.noResults}>
+            Nothing matches “{term}”. Check the spelling, or try a broader word like “linen” or “gift”.
+          </p>
+        )}
+
+        {!typing && (
+          <div className={styles.starters}>
+            {recent.length > 0 && (
+              <section aria-labelledby={`${listId}-recent`}>
+                <div className={styles.startersHeader}>
+                  <h2 id={`${listId}-recent`} className={styles.startersTitle}>
+                    <HeadingIcon icon={History} />
+                    <Clock aria-hidden="true" /> Recent searches
+                  </h2>
+                  <button
+                    type="button"
+                    className={styles.clearRecent}
+                    onClick={() => {
+                      clearRecentSearches();
+                      setRecent([]);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <ul className={styles.pills}>
+                  {recent.map((item) => (
+                    <li key={item}>
+                      <button type="button" className={styles.pill} onClick={() => submit(item)}>
+                        {item}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            <section aria-labelledby={`${listId}-popular`}>
+              <h2 id={`${listId}-popular`} className={styles.startersTitle}>
+                <HeadingIcon icon={TrendingUp} />
+                <TrendingUp aria-hidden="true" /> Popular right now
+              </h2>
+              <ul className={styles.pills}>
+                {POPULAR_SEARCHES.map((item) => (
+                  <li key={item}>
+                    <button
+                      type="button"
+                      className={styles.pill}
+                      onClick={() => {
+                        setQuery(item);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      {item}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
