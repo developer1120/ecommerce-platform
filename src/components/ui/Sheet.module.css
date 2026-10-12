@@ -1,0 +1,104 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: var(--color-overlay);
+  animation: fade var(--duration-base) var(--ease-out);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(36rem, 100%);
+  max-height: min(85vh, 85dvh);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-canvas);
+  box-shadow: var(--shadow-lifted);
+  animation: rise var(--duration-slow) var(--ease-out);
+}
+
+.panel:focus {
+  outline: none;
+}
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* A grab handle, as a cue that this is a sheet over the page. */
+.header::before {
+  position: absolute;
+  top: var(--space-2);
+  left: 50%;
+  width: 2.5rem;
+  height: 0.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-line-strong);
+  transform: translateX(-50%);
+  content: '';
+}
+
+.title {
+  font-size: var(--text-2xl);
+}
+
+.close {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--color-surface-sunken);
+}
+
+.close > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-5);
+}
+
+.footer {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) calc(var(--space-4) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-line);
+  background: var(--color-canvas);
+}
+
+.footer > * {
+  flex: 1;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
