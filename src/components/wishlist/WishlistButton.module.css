@@ -1,0 +1,61 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 0;
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.button:active {
+  transform: scale(0.92);
+}
+
+.button[data-variant='icon'] {
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-soft);
+}
+
+.button[data-variant='icon']:hover {
+  background: var(--color-surface);
+}
+
+.button[data-variant='labelled'] {
+  min-height: 3.25rem;
+  padding: 0 var(--space-5);
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.button[data-variant='labelled']:hover {
+  background: var(--color-surface-sunken);
+}
+
+.heart {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.button[aria-pressed='true'] .heart {
+  color: var(--color-sale-text);
+  fill: currentColor;
+  animation: pop var(--duration-base) var(--ease-out);
+}
+
+@keyframes pop {
+  50% {
+    transform: scale(1.3);
+  }
+}
