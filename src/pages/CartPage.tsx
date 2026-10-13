@@ -123,3 +123,128 @@ export function CartPage() {
               Remove all
             </button>
           </div>
+        </section>
+
+        <aside className={styles.summary} aria-labelledby="summary-title">
+          <h2 id="summary-title" className={styles.summaryTitle}>
+            <HeadingIcon icon={ReceiptText} />
+            Order summary
+          </h2>
+          <FreeShippingMeter subtotal={totals.merchandiseTotal} />
+          <PromoCodeForm />
+          <ShippingEstimator
+            destination={estimate.destination}
+            method={estimate.method}
+            merchandiseTotal={totals.merchandiseTotal}
+            promoFreeShipping={Boolean(evaluation?.ok && evaluation.freeShipping)}
+            onStateChange={estimate.setState}
+            onMethodChange={estimate.setMethod}
+          />
+          <dl className={styles.rows}>
+            <div className={styles.row}>
+              <dt>Subtotal</dt>
+              <dd>{formatMoney(totals.subtotal)}</dd>
+            </div>
+            {savings > 0 && (
+              <div className={styles.row} data-tone="saving">
+                {/* Already taken off the subtotal, so no minus sign. */}
+                <dt>Sale savings included</dt>
+                <dd>{formatMoney(savings)}</dd>
+              </div>
+            )}
+            {totals.discount > 0 && (
+              <div className={styles.row} data-tone="saving">
+                <dt>Promo {promotion?.code}</dt>
+                <dd>−{formatMoney(totals.discount)}</dd>
+              </div>
+            )}
+            <div className={styles.row}>
+              <dt>Shipping ({totals.shipping.method.label.toLowerCase()})</dt>
+              <dd>{totals.shipping.price === 0 ? 'Free' : formatMoney(totals.shipping.price)}</dd>
+            </div>
+            <div className={styles.row}>
+              <dt>
+                {totals.tax && estimate.destination
+                  ? `Tax (${estimate.destination.code} ${formatRate(totals.tax.rate)})`
+                  : 'Tax'}
+              </dt>
+              {totals.tax ? (
+                <dd>{formatMoney(totals.tax.tax)}</dd>
+              ) : (
+                <dd className={styles.pending}>Choose a state</dd>
+              )}
+            </div>
+            <div className={styles.row} data-tone="total">
+              <dt>{totals.tax ? 'Total' : 'Total before tax'}</dt>
+              <dd>{formatMoney(totals.total)}</dd>
+            </div>
+          </dl>
+          <Link to="/checkout" className={styles.checkout}>
+            Checkout
+          </Link>
+          {totals.tax && totals.tax.exemptDepartments.length > 0 && (
+            <p className={styles.note}>
+              <Info aria-hidden="true" />
+              {estimate.destination!.name} doesn't tax {totals.tax.exemptDepartments.join(' or ')} items.
+            </p>
+          )}
+          <p className={styles.note}>
+            <Info aria-hidden="true" />
+            Prices and stock were checked when you opened your bag. Tax is an estimate of state sales tax.
+          </p>
+        </aside>
+      </div>
+
+      <ProductRail id="bag-suggestions" title="Pairs well with your bag" icon={Puzzle} result={suggestions} />
+    </div>
+  );
+}
+
+/**
+ * Checks the bag against the live catalog once per visit, applies any
+ * corrections and returns the notes to show. A failed check stays quiet:
+ * checkout checks again.
+ */
+function useCatalogCheck() {
+  const { lines, replaceLines } = useCart();
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+  const [productIds] = useState(() => [...new Set(lines.map((line) => line.productId))]);
+  const [notices, setNotices] = useState<CartNotice[]>([]);
+  const applied = useRef(false);
+
+  const check = useAsync(
+    (signal) => (productIds.length > 0 ? listProducts({ ids: productIds }, { signal }) : Promise.resolve([])),
+    [productIds],
+  );
+
+  useEffect(() => {
+    if (applied.current || check.status !== 'success') return;
+    applied.current = true;
+    const result = reconcileCart({ lines: linesRef.current }, check.data);
+    if (result.changed) replaceLines(result.state.lines);
+    setNotices(result.notices);
+  }, [check.status, check.data, replaceLines]);
+
+  if (notices.length === 0) return null;
+  return (
+    <section className={styles.notices} aria-labelledby="bag-notices-title">
+      <div className={styles.noticesHeader}>
+        <h2 id="bag-notices-title" className={styles.noticesTitle}>
+          <HeadingIcon icon={Info} />
+          We updated your bag
+        </h2>
+        <button type="button" className={styles.dismiss} onClick={() => setNotices([])}>
+          Got it
+        </button>
+      </div>
+      <ul>
+        {notices.map((notice) => (
+          <li key={`${notice.variantId}-${notice.kind}`} data-kind={notice.kind}>
+            {notice.message}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
