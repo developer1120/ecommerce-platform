@@ -1,0 +1,43 @@
+.textarea {
+  width: 100%;
+  min-height: 7rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  line-height: var(--leading-body);
+  resize: vertical;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.textarea:hover {
+  border-color: var(--color-ink-subtle);
+}
+
+.textarea:focus {
+  border-color: var(--color-focus);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus) 22%, transparent);
+}
+
+.textarea[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.below {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.count[data-near] {
+  color: var(--color-warning);
+  font-weight: 700;
+}
