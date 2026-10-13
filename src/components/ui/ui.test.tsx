@@ -118,3 +118,123 @@ describe('TextField', () => {
   it('links the label to the input', async () => {
     render(<TextField label="Email" type="email" />);
     const input = screen.getByLabelText('Email');
+    await userEvent.type(input, 'ada@example.com');
+    expect(input).toHaveValue('ada@example.com');
+  });
+
+  it('describes the input with its hint and marks required fields', () => {
+    render(<TextField label="Postcode" hint="We only ship within the US" required />);
+    const input = screen.getByRole('textbox', { name: /postcode/i });
+    expect(input).toBeRequired();
+    expect(input).toHaveAccessibleDescription('We only ship within the US');
+  });
+
+  it('flags an error and reads it after the hint', () => {
+    render(<TextField label="Card name" hint="As printed on the card" error="Enter the name on the card" />);
+    const input = screen.getByRole('textbox', { name: 'Card name' });
+    expect(input).toBeInvalid();
+    expect(input).toHaveAccessibleDescription('As printed on the card Enter the name on the card');
+  });
+
+  it('keeps a caller-supplied description', () => {
+    render(
+      <>
+        <p id="extra">Shown on your receipt</p>
+        <TextField label="Company" aria-describedby="extra" />
+      </>,
+    );
+    expect(screen.getByRole('textbox', { name: 'Company' })).toHaveAccessibleDescription('Shown on your receipt');
+  });
+
+  it('can hide the label visually while keeping the accessible name', () => {
+    render(<TextField label="Search the shop" hideLabel />);
+    expect(screen.getByText('Search the shop')).toHaveClass('visually-hidden');
+    expect(screen.getByRole('textbox', { name: 'Search the shop' })).toBeInTheDocument();
+  });
+});
+
+describe('ToggleChip', () => {
+  function Harness() {
+    const [selected, setSelected] = useState(false);
+    return (
+      <ToggleChip selected={selected} onToggle={() => setSelected((value) => !value)} swatch="#c8f169">
+        Lime
+      </ToggleChip>
+    );
+  }
+
+  it('exposes its state through aria-pressed', async () => {
+    render(<Harness />);
+    const chip = screen.getByRole('button', { name: 'Lime' });
+    expect(chip).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('ToggleChip labels', () => {
+  it('can carry a fuller accessible name than its visible text', () => {
+    render(
+      <ToggleChip selected={false} onToggle={() => {}} accessibleLabel="Lilac, 2 products">
+        Lilac
+      </ToggleChip>,
+    );
+    expect(screen.getByRole('button', { name: 'Lilac, 2 products' })).toHaveTextContent('Lilac');
+  });
+});
+
+describe('RemovableChip', () => {
+  it('names its remove button after the chip', async () => {
+    const onRemove = vi.fn();
+    render(<RemovableChip onRemove={onRemove}>Under $50</RemovableChip>);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Under $50' }));
+    expect(onRemove).toHaveBeenCalledOnce();
+  });
+});
+
+describe('Spinner', () => {
+  it('is silent without a label', () => {
+    const { container } = render(<Spinner />);
+    expect(container.firstChild).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('announces its label as a status', () => {
+    render(<Spinner label="Loading products" />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading products');
+  });
+});
+
+describe('cx', () => {
+  it('joins truthy class names', () => {
+    expect(cx('a', false, null, undefined, '', 'b')).toBe('a b');
+  });
+});
+
+describe('HeadingIcon', () => {
+  it('decorates a heading without changing its name', () => {
+    render(
+      <h2>
+        <HeadingIcon icon={Package} />
+        Your orders
+      </h2>,
+    );
+    const heading = screen.getByRole('heading', { name: 'Your orders' });
+    const icon = heading.querySelector('svg')!;
+    expect(icon.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('becomes a badge for page titles', () => {
+    const { container } = render(<HeadingIcon icon={Package} badge />);
+    expect(container.firstElementChild!.className).toMatch(/badge/);
+  });
+});
+
+describe('Badge icons', () => {
+  it('shows an icon that screen readers skip', () => {
+    render(<Badge icon={<Icon />}>New</Badge>);
+    const badge = screen.getByText('New');
+    expect(badge).toHaveTextContent(/^New$/);
+    expect(screen.getByTestId('icon').closest('[aria-hidden="true"]')).toBeInTheDocument();
+  });
+});
