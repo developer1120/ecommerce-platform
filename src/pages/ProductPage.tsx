@@ -121,3 +121,127 @@ function ProductDetail({ product }: { product: Product }) {
           <BackInStockBanner variant={variant} />
           <StockNotice stock={variant.stock} hasOptions={product.options.length > 0} />
           {variant.stock <= 0 && <NotifyMe product={product} variant={variant} />}
+          <AddToBag product={product} variant={variant} />
+          <div className={styles.skuRow}>
+            <p className={styles.sku}>SKU {variant.sku}</p>
+            <CompareToggle product={product} />
+          </div>
+
+          <div className={styles.sections}>
+            <details open className={styles.section}>
+              <summary>
+                <span>
+                  <HeadingIcon icon={AlignLeft} />
+                  Description
+                </span>
+              </summary>
+              <p>{product.description}</p>
+            </details>
+            <details className={styles.section}>
+              <summary>
+                <span>
+                  <HeadingIcon icon={ListChecks} />
+                  Details
+                </span>
+              </summary>
+              <ul>
+                {product.details.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+              </ul>
+            </details>
+            <details className={styles.section}>
+              <summary>
+                <span>
+                  <HeadingIcon icon={Truck} />
+                  Shipping and returns
+                </span>
+              </summary>
+              <p>
+                Free carbon-neutral shipping on orders over $75, otherwise from $5.95. Orders ship in 2 to 4 working
+                days. Changed your mind? Return unused items within 30 days for a full refund.
+              </p>
+            </details>
+            <details className={styles.section}>
+              <summary>
+                <span>
+                  <HeadingIcon icon={Store} />
+                  About {product.maker}
+                </span>
+              </summary>
+              <p>
+                A small studio we work with directly. Every piece is made in limited runs, so colours and finishes vary
+                slightly from batch to batch.
+              </p>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <ProductRail id="recommendations" title="You may also like" icon={ThumbsUp} result={recommendations} />
+      <ProductReviews product={product} />
+      <ProductQuestions product={product} />
+      <RecentlyViewed excludeId={product.id} />
+    </article>
+  );
+}
+
+function VariantPrice({ product, variant }: { product: Product; variant: Variant }) {
+  const price = variantPrice(product, variant);
+  // A compare-at price only applies to variants that share the product's base price.
+  const compareAt = variant.price === undefined ? product.compareAtPrice : undefined;
+  const percent = discountPercent(price, compareAt);
+
+  return (
+    <p className={styles.price} aria-live="polite">
+      {percent > 0 ? (
+        <>
+          <span className={styles.salePrice}>
+            <span className="visually-hidden">Sale price </span>
+            {formatMoney(price)}
+          </span>
+          <s className={styles.was}>
+            <span className="visually-hidden">was </span>
+            {formatMoney(compareAt!)}
+          </s>
+          <Badge tone="sale">Save {percent}%</Badge>
+        </>
+      ) : (
+        formatMoney(price)
+      )}
+    </p>
+  );
+}
+
+function ProductNotFound() {
+  usePageTitle('Product not found');
+  return (
+    <section className={styles.notFound}>
+      <h1>
+        <HeadingIcon icon={PackageX} badge />
+        We can't find that product
+      </h1>
+      <p>It may have sold out for good or moved. Have a look at what's new instead.</p>
+      <div className={styles.notFoundLinks}>
+        <Link to="/shop/new" className={styles.primaryLink}>
+          See new arrivals
+        </Link>
+        <Link to="/shop">Browse everything</Link>
+      </div>
+    </section>
+  );
+}
+
+function ProductSkeleton() {
+  return (
+    <div className={styles.layout} aria-busy="true" aria-label="Loading product">
+      <div className={styles.skeletonMedia} />
+      <div className={styles.info}>
+        <div className={styles.skeletonLine} style={{ width: '30%' }} />
+        <div className={styles.skeletonLine} style={{ width: '70%', height: '2.5rem' }} />
+        <div className={styles.skeletonLine} style={{ width: '20%' }} />
+        <div className={styles.skeletonLine} style={{ width: '90%' }} />
+      </div>
+    </div>
+  );
+}
