@@ -109,3 +109,114 @@ describe('order history', () => {
     expect(cards[1]).toHaveTextContent('Order placed');
     expect(within(cards[0]!).getByRole('link', { name: `View order ${second.id}` })).toHaveAttribute(
       'href',
+      `/account/orders/${second.id}`,
+    );
+  });
+
+  it('filters by status', async () => {
+    const { token } = await account();
+    const open = await order(token, [line('cedar-and-vetiver-soap')]);
+    const done = await order(token, [line('rose-clay-mask')]);
+    setStatus(done.id, 'delivered');
+
+    signInAs(token);
+    renderRoute('/account/orders');
+    await main().findAllByRole('article');
+    await userEvent.click(main().getByRole('button', { name: 'Delivered' }));
+    expect(main().getAllByRole('article').map((card) => within(card).getByRole('heading').textContent)).toEqual([done.id]);
+    await userEvent.click(main().getByRole('button', { name: 'In progress' }));
+    expect(main().getAllByRole('article').map((card) => within(card).getByRole('heading').textContent)).toEqual([open.id]);
+    await userEvent.click(main().getByRole('button', { name: 'Cancelled' }));
+    expect(main().getByText('No cancelled orders.')).toBeInTheDocument();
+  });
+
+  it('invites a first order when there are none', async () => {
+    const { token } = await account();
+    signInAs(token);
+    renderRoute('/account/orders');
+    expect(await main().findByRole('heading', { name: 'No orders yet' })).toBeInTheDocument();
+  });
+});
+
+describe('order detail', () => {
+  it('shows progress, delivery, payment, items and totals', async () => {
+    const { token } = await account();
+    const placed = await order(token, [line('washed-linen-throw'), line('cedar-and-vetiver-soap', 2)]);
+    setStatus(placed.id, 'shipped');
+    signInAs(token);
+    renderRoute(`/account/orders/${placed.id}`);
+
+    expect(await main().findByRole('heading', { name: `Order ${placed.id}` })).toBeInTheDocument();
+    const progress = main().getByRole('list', { name: 'Order progress' });
+    expect(within(progress).getByText('Shipped').closest('li')).toHaveAttribute('aria-current', 'step');
+    expect(within(progress).getByText('Packed').closest('li')).toHaveTextContent('(done)');
+    expect(main().getByText(/expected tue, oct 13 – thu, oct 15/i)).toBeInTheDocument();
+    expect(main().getByRole('region', { name: 'Shipping to' })).toHaveTextContent('Brooklyn, NY 11201');
+    expect(main().getByRole('region', { name: 'Payment' })).toHaveTextContent('Visa ending 4242');
+    expect(within(main().getByRole('region', { name: 'Items' })).getByText('Total').parentElement).toHaveTextContent('$124.80');
+  });
+
+  it('explains a cancelled order', async () => {
+    const { token } = await account();
+    const placed = await order(token, [line('rose-clay-mask')]);
+    setStatus(placed.id, 'cancelled');
+    signInAs(token);
+    renderRoute(`/account/orders/${placed.id}`);
+    expect(await main().findByText(/this order was cancelled/i)).toBeInTheDocument();
+  });
+
+  it('buys an item again, at today’s price', async () => {
+    const { token } = await account();
+    const placed = await order(token, [line('cedar-and-vetiver-soap', 2)]);
+    signInAs(token);
+    renderRoute(`/account/orders/${placed.id}`);
+    await userEvent.click(await main().findByRole('button', { name: 'Buy again: Cedar and vetiver soap' }));
+    await waitFor(() => expect(loadCart().lines).toHaveLength(1));
+    expect(loadCart().lines[0]).toMatchObject({ variantId: 'ra-soap', quantity: 1, unitPrice: 1200 });
+    expect(screen.getByRole('region', { name: 'Notifications' })).toHaveTextContent('Added to your bag');
+  });
+
+  it('says when an item to buy again has sold out', async () => {
+    const { token } = await account();
+    const placed = await order(token, [line('hand-thrown-bud-vase', 3)]); // the last three Chalk vases
+    expect(findVariant('hk-vase-chal')!.variant.stock).toBe(0);
+    signInAs(token);
+    renderRoute(`/account/orders/${placed.id}`);
+    await userEvent.click(await main().findByRole('button', { name: /buy again: hand-thrown bud vase/i }));
+    expect(await screen.findByText('Hand-thrown bud vase is sold out')).toBeInTheDocument();
+    expect(loadCart().lines).toEqual([]);
+  });
+
+  it("will not show another account's order", async () => {
+    const grace = await account('Grace Hopper', 'grace@example.com');
+    const theirs = await order(grace.token, [line('oak-serving-board')]);
+    const { token } = await account();
+    signInAs(token);
+    renderRoute(`/account/orders/${theirs.id}`);
+    expect(await main().findByRole('heading', { name: "We can't find that order" })).toBeInTheDocument();
+  });
+});
+
+describe('order privacy outside the account', () => {
+  it("hides an account's order from the public order page unless signed in as its owner", async () => {
+    const { token } = await account();
+    const placed = await order(token, [line('rose-clay-mask')]);
+    await expect(getOrder(placed.id, null)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(getOrder(placed.id, token)).resolves.toMatchObject({ id: placed.id });
+
+    signInAs(token);
+    renderRoute(`/orders/${placed.id}`);
+    expect(await screen.findByRole('heading', { level: 1, name: `Order ${placed.id}` })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Track it in your account' })).toHaveAttribute(
+      'href',
+      `/account/orders/${placed.id}`,
+    );
+  });
+
+  it('keeps guest orders reachable by number, like a receipt link', async () => {
+    const placed = await order(undefined, [line('rose-clay-mask')]);
+    renderRoute(`/orders/${placed.id}`);
+    expect(await screen.findByRole('heading', { level: 1, name: `Order ${placed.id}` })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Track it in your account' })).not.toBeInTheDocument();
+  });
+});
