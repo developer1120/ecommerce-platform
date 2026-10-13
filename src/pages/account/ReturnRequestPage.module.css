@@ -138,3 +138,144 @@
   margin: 0.15rem 0 0;
   accent-color: var(--color-primary);
 }
+
+.check > span {
+  display: grid;
+}
+
+.itemName {
+  font-weight: 700;
+}
+
+.itemFields {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.itemFields > * {
+  /* Let long option text shrink the select instead of pushing past the card. */
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.itemFields > :only-child {
+  grid-column: 1 / -1;
+}
+
+.options {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.option:has(:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-sunken);
+}
+
+.option input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.optionText {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.optionName {
+  font-weight: 700;
+}
+
+.optionPrice {
+  font-weight: 700;
+}
+
+.optional {
+  color: var(--color-ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.textarea {
+  min-height: 5rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  resize: vertical;
+}
+
+.hint {
+  color: var(--color-ink-muted);
+  font-size: var(--text-xs);
+}
+
+.summary {
+  position: sticky;
+  top: calc(var(--header-height, 4.5rem) + var(--space-4));
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.totals {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.totals dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.totals [data-tone='total'] {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+  font-size: var(--text-lg);
+}
+
+.submit {
+  width: 100%;
+}
+
+/* Beside the account menu, the form needs the full width below this. */
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary {
+    position: static;
+  }
+}
+
+@media (max-width: 480px) {
+  .itemFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
