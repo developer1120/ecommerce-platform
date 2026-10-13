@@ -108,3 +108,113 @@ describe('sign up', () => {
     renderRoute('/account/sign-up');
     await userEvent.type(main().getByRole('textbox', { name: 'Your name' }), 'Grace Hopper');
     await userEvent.type(main().getByRole('textbox', { name: 'Email' }), 'grace@example.com');
+    await userEvent.type(main().getByLabelText('Password'), 'password123');
+    expect(main().getByText(/password strength/i)).toHaveTextContent('Too weak');
+    await userEvent.click(main().getByRole('button', { name: 'Create account' }));
+    expect(main().getByLabelText('Password')).toHaveAccessibleDescription(/too common/);
+  });
+
+  it('points an existing customer to sign in', async () => {
+    await existingAccount();
+    renderRoute('/account/sign-up?next=%2Fcheckout');
+    await userEvent.type(main().getByRole('textbox', { name: 'Your name' }), 'Ada Lovelace');
+    await userEvent.type(main().getByRole('textbox', { name: 'Email' }), 'ada@example.com');
+    await userEvent.type(main().getByLabelText('Password'), 'another long phrase');
+    await userEvent.click(main().getByRole('button', { name: 'Create account' }));
+
+    const alert = await main().findByRole('alert');
+    expect(alert).toHaveTextContent('An account with that email already exists.');
+    expect(within(alert).getByRole('link', { name: 'Go to sign in' })).toHaveAttribute('href', '/account/sign-in?next=%2Fcheckout');
+  });
+});
+
+describe('session in the header', () => {
+  it('links to sign in, coming back to the current page', () => {
+    renderRoute('/shop/home?type=Decor');
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/account/sign-in?next=%2Fshop%2Fhome%3Ftype%3DDecor',
+    );
+  });
+
+  it('restores a saved session on load and signs out from the menu', async () => {
+    const { token } = await existingAccount();
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(token));
+    renderRoute('/');
+
+    const avatar = await screen.findByRole('button', { name: 'Account menu for Ada Lovelace' });
+    await userEvent.click(avatar);
+    expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
+    expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
+  });
+
+  it('forgets a token the server no longer accepts', async () => {
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify('stale-token'));
+    renderRoute('/');
+    await waitFor(() => expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBeNull());
+    expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('closes the account menu with Escape', async () => {
+    const { token } = await existingAccount();
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(token));
+    renderRoute('/');
+    const avatar = await screen.findByRole('button', { name: /account menu/i });
+    await userEvent.click(avatar);
+    await userEvent.keyboard('{Escape}');
+    expect(avatar).toHaveAttribute('aria-expanded', 'false');
+    expect(avatar).toHaveFocus();
+  });
+
+  it('sends a signed-in visitor away from the sign-in page', async () => {
+    const { token } = await existingAccount();
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(token));
+    const { router } = renderRoute('/account/sign-in?next=%2Fcart');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/cart'));
+  });
+});
+
+describe('checkout when signed in', () => {
+  it('fills in the name and email, and links the order to the account', async () => {
+    const { token, user } = await existingAccount();
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(token));
+    const soap = CATALOG.find((product) => product.slug === 'cedar-and-vetiver-soap')!;
+    saveCart(cartReducer(EMPTY_CART, { type: 'add', line: makeCartLine(soap, soap.variants[0]!), quantity: 1 }));
+
+    const form = renderRoute('/checkout');
+    // The session is still being checked when the form first renders; the fields fill in once it is.
+    await waitFor(() => expect(main().getByRole('textbox', { name: /^email/i })).toHaveValue('ada@example.com'));
+    expect(main().getByRole('textbox', { name: /^first name/i })).toHaveValue('Ada');
+    expect(main().getByRole('textbox', { name: /^last name/i })).toHaveValue('Lovelace');
+    form.unmount();
+
+    sessionStorage.setItem(
+      CHECKOUT_STORAGE_KEY,
+      JSON.stringify({
+        address: {
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          line1: '12 Analytical Way',
+          line2: '',
+          city: 'Brooklyn',
+          state: 'NY',
+          zip: '11201',
+          phone: '',
+        },
+        addressConfirmed: true,
+        methodId: 'standard',
+        deliveryConfirmed: true,
+        card: { brand: 'visa', last4: '4242', expMonth: 4, expYear: 2029, name: 'Ada Lovelace' },
+      }),
+    );
+    renderRoute('/checkout/review');
+    await screen.findByRole('button', { name: /account menu/i });
+    await userEvent.click(screen.getByRole('button', { name: /^place order/i }));
+    await waitFor(() => expect(loadOrders()).toHaveLength(1));
+    expect(loadOrders()[0]!.customerId).toBe(user.id);
+  });
+});
