@@ -1,0 +1,135 @@
+.page {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.header {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-8) clamp(1.5rem, 4vw, 3rem) var(--space-10);
+  border-radius: var(--radius-xl);
+  background: var(--tint-sand);
+}
+
+.header[data-tint='lilac'] {
+  background: var(--tint-lilac);
+}
+
+.header[data-tint='sage'] {
+  background: var(--tint-sage);
+}
+
+.header[data-tint='blush'] {
+  background: var(--tint-blush);
+}
+
+.header[data-tint='sale'] {
+  background: var(--color-sale);
+  color: var(--color-on-sale);
+}
+
+.title {
+  margin-top: var(--space-4);
+  font-size: var(--text-4xl);
+}
+
+.intro {
+  max-width: 48ch;
+  font-size: var(--text-lg);
+  opacity: 0.85;
+}
+
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-16) var(--space-6);
+  border: 1.5px dashed var(--color-line-strong);
+  border-radius: var(--radius-xl);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: var(--text-2xl);
+}
+
+.emptyLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin-top: var(--space-2);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* Filters beside the results */
+
+.layout {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-8);
+}
+
+.sidebar {
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-4));
+  max-height: calc(100vh - var(--header-height) - var(--space-8));
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+.results {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.resultCount {
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  /* Filters and sort stay within reach while scrolling a long grid. */
+  .toolbar {
+    position: sticky;
+    top: var(--header-height);
+    z-index: 10;
+    row-gap: var(--space-1);
+    margin: 0 calc(-1 * var(--gutter));
+    padding: var(--space-3) var(--gutter) var(--space-2);
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-canvas);
+  }
+
+  /* Filters and sort share the first row; the count sits quietly beneath. */
+  .filtersButton {
+    flex: none;
+  }
+
+  .resultCount {
+    flex-basis: 100%;
+    order: 1;
+    color: var(--color-ink-muted);
+    font-size: var(--text-xs);
+  }
+}

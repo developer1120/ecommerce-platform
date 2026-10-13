@@ -151,3 +151,157 @@
 .tile[data-slug='beauty'] .tileLink {
   background: var(--tint-blush);
 }
+
+.tile[data-slug='sale'] .tileLink {
+  background: var(--color-sale);
+  color: var(--color-on-sale);
+}
+
+.tileLink:hover {
+  transform: translateY(-3px);
+}
+
+.tileText {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+}
+
+.tileTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+}
+
+.tile[data-slug='home'] .tileTitle {
+  font-size: clamp(2.5rem, 4vw, 3.5rem);
+}
+
+.tileBlurb {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* Sized by the tile's height, so the drawing always fits whatever the tile width. */
+.tileArt {
+  position: absolute;
+  right: 2%;
+  bottom: -4%;
+  width: auto;
+  height: 100%;
+}
+
+.tile[data-slug='home'] .tileArt {
+  right: 4%;
+  bottom: 0;
+  height: 78%;
+}
+
+.tile[data-slug='sale'] .tileArt {
+  opacity: 0.5;
+}
+
+.tileArrow {
+  position: absolute;
+  bottom: var(--space-5);
+  left: var(--space-6);
+  width: 1.5rem;
+  height: 1.5rem;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.tileLink:hover .tileArrow {
+  transform: translateX(4px);
+}
+
+/* Promises */
+
+.promises {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  list-style: none;
+}
+
+.promise {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.promise strong {
+  display: block;
+}
+
+.promiseIcon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0.25rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-sizing: content-box;
+}
+
+.promiseText {
+  color: var(--color-ink-muted);
+}
+
+@media (max-width: 960px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .collage {
+    min-height: 16rem;
+  }
+
+  .collage > * {
+    width: 34%;
+  }
+
+  .promises {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 14rem repeat(2, 10rem);
+  }
+
+  .tile[data-slug='home'] {
+    grid-row: auto;
+  }
+
+  .tile[data-slug='apparel'] {
+    grid-column: span 1;
+  }
+
+  .tile[data-slug='sale'] {
+    grid-column: span 2;
+  }
+
+  .tileTitle {
+    font-size: var(--text-2xl);
+  }
+
+  /* The half-width tiles are too small for text and a drawing. */
+  .tile[data-slug='apparel'] .tileArt,
+  .tile[data-slug='beauty'] .tileArt {
+    display: none;
+  }
+
+  .collage {
+    display: none;
+  }
+}
