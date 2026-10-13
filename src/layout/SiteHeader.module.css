@@ -1,0 +1,132 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: var(--container-max);
+  height: var(--header-height);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.menuButton {
+  display: none;
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-style: italic;
+  font-weight: 450;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.logoDot {
+  color: var(--color-sale-text);
+}
+
+.navList {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navLink {
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.navLink:hover {
+  background: var(--color-surface-sunken);
+}
+
+.navLinkActive {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.navLinkActive:hover {
+  background: var(--color-primary-hover);
+}
+
+.navLink[data-highlight]:not(.navLinkActive) {
+  color: var(--color-sale-text);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.mobileMenu {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .inner {
+    grid-template-columns: 1fr auto;
+  }
+
+  .menuButton {
+    display: inline-grid;
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .hideOnSmall {
+    display: none;
+  }
+
+  .mobileMenu:not([hidden]) {
+    display: block;
+    padding: var(--space-2) var(--gutter) var(--space-6);
+    border-top: 1px solid var(--color-line);
+    background: var(--color-surface);
+  }
+
+  .mobileMenu ul {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mobileLink {
+    display: block;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-line);
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    text-decoration: none;
+  }
+
+  .mobileLink[data-highlight] {
+    color: var(--color-sale-text);
+  }
+}
