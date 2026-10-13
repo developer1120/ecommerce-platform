@@ -1,0 +1,153 @@
+.page {
+  display: grid;
+  gap: var(--space-12);
+}
+
+/* Hero */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+  padding: clamp(2rem, 5vw, 4rem);
+  border-radius: var(--radius-xl);
+  background: light-dark(#2b1a3a, #24163a);
+  color: #f6f3fa;
+}
+
+.eyebrow {
+  margin-bottom: var(--space-4);
+  color: #c8f169;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  font-size: var(--text-4xl);
+}
+
+.heroTitle em {
+  color: #c8f169;
+}
+
+.heroText {
+  max-width: 40ch;
+  margin-top: var(--space-5);
+  color: #d9cfe5;
+  font-size: var(--text-lg);
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}
+
+.primaryCta,
+.secondaryCta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 3rem;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.primaryCta {
+  background: #c8f169;
+  color: #2b1a3a;
+}
+
+.primaryCta:hover {
+  background: #b5e24c;
+}
+
+.secondaryCta {
+  border: 1.5px solid rgb(246 243 250 / 0.35);
+  color: #f6f3fa;
+}
+
+.secondaryCta:hover {
+  background: rgb(246 243 250 / 0.08);
+}
+
+.hero :focus-visible {
+  outline-color: #c8f169;
+}
+
+.collage {
+  position: relative;
+  min-height: 22rem;
+}
+
+.collage > * {
+  position: absolute;
+  width: 46%;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.25);
+}
+
+.collageA {
+  top: 0;
+  left: 6%;
+  transform: rotate(-6deg);
+}
+
+.collageB {
+  top: 12%;
+  right: 4%;
+  transform: rotate(5deg);
+}
+
+.collageC {
+  bottom: 0;
+  left: 30%;
+  transform: rotate(-1deg);
+}
+
+/* Department bento */
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, 11rem);
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile[data-slug='home'] {
+  grid-row: span 2;
+  grid-column: span 2;
+}
+
+.tile[data-slug='apparel'] {
+  grid-column: span 2;
+}
+
+.tileLink {
+  position: relative;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--tint-lilac);
+  text-decoration: none;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.tile[data-slug='apparel'] .tileLink {
+  background: var(--tint-sage);
+}
+
+.tile[data-slug='beauty'] .tileLink {
+  background: var(--tint-blush);
+}

@@ -121,3 +121,127 @@ describe('CartPage', () => {
     saveCart(bag(line(candles, 1, 1, { stock: 4 })));
     renderRoute('/cart');
     expect(await screen.findByText('Beeswax taper candles (Plum) has sold out, so we removed it.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Your bag is empty' })).toBeInTheDocument();
+  });
+
+  it('keeps the saved bag when the check fails', async () => {
+    configureApi({ failureRate: 1 });
+    saveCart(bag(line(mugs, 0, 1, { unitPrice: 3500 })));
+    renderRoute('/cart');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your bag' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'We updated your bag' })).not.toBeInTheDocument();
+    expect(loadCart().lines[0]!.unitPrice).toBe(3500);
+  });
+
+  it('edits quantities and removes a line with undo', async () => {
+    seed(line(soap, 0, 1), line(mugs, 0, 1));
+    renderRoute('/cart');
+    const stepper = screen.getByRole('group', { name: 'Quantity of Cedar and vetiver soap' });
+    await userEvent.click(within(stepper).getByRole('button', { name: 'Increase' }));
+    expect(screen.getByText('3 items')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Stoneware mug set' }));
+    expect(screen.getByText('2 items')).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole('region', { name: 'Notifications' })).getByRole('button', { name: 'Undo' }));
+    expect(screen.getByText('3 items')).toBeInTheDocument();
+  });
+
+  it('removes everything at once and can undo it', async () => {
+    seed(line(soap, 0, 2), line(mugs, 0, 1));
+    renderRoute('/cart');
+    await userEvent.click(screen.getByRole('button', { name: 'Remove all' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Your bag is empty' })).toBeInTheDocument();
+    expect(loadCart().lines).toEqual([]);
+
+    await userEvent.click(within(screen.getByRole('region', { name: 'Notifications' })).getByRole('button', { name: 'Undo' }));
+    expect(screen.getByText('3 items')).toBeInTheDocument();
+  });
+
+  it('shows an empty state with ways back into the shop', () => {
+    renderRoute('/cart');
+    expect(screen.getByRole('heading', { level: 1, name: 'Your bag is empty' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Shop new arrivals' })).toHaveAttribute('href', '/shop/new');
+  });
+
+  it('is reached from the drawer', async () => {
+    seed(line(soap, 0, 1));
+    const { router } = renderRoute('/');
+    await userEvent.click(screen.getByRole('button', { name: /^Bag/ }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'View bag' }));
+    expect(router.state.location.pathname).toBe('/cart');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('shipping and tax estimate', () => {
+  function seedOne(slug: string, quantity: number) {
+    const product = bySlug(slug);
+    saveCart(cartReducer(EMPTY_CART, { type: 'add', line: makeCartLine(product, product.variants[0]!), quantity }));
+  }
+  const summary = () => screen.getByRole('complementary', { name: 'Order summary' });
+  const row = (label: string | RegExp) => within(summary()).getByText(label).parentElement!;
+
+  it('adds standard shipping and asks for a state before showing tax', () => {
+    seedOne('cedar-and-vetiver-soap', 2); // $24
+    renderRoute('/cart');
+    expect(row('Shipping (standard)')).toHaveTextContent('$5.95');
+    expect(row('Tax')).toHaveTextContent('Choose a state');
+    expect(row('Total before tax')).toHaveTextContent('$29.95');
+  });
+
+  it('shows each delivery method with its price and dates', () => {
+    seedOne('cedar-and-vetiver-soap', 2);
+    renderRoute('/cart');
+    const delivery = within(summary()).getByRole('group', { name: 'Delivery' });
+    expect(within(delivery).getByRole('radio', { name: /standard/i }).closest('label')).toHaveTextContent('Tue, Oct 13 – Thu, Oct 15$5.95');
+    expect(within(delivery).getByRole('radio', { name: /next day/i }).closest('label')).toHaveTextContent('Fri, Oct 9$24.95');
+  });
+
+  it('switches method and adds state tax, remembering both', async () => {
+    seedOne('cedar-and-vetiver-soap', 2);
+    renderRoute('/cart');
+    await userEvent.selectOptions(within(summary()).getByRole('combobox', { name: 'Ship to' }), 'CA');
+    await userEvent.click(within(summary()).getByRole('radio', { name: /express/i }));
+
+    expect(row('Shipping (express)')).toHaveTextContent('$14.95');
+    // 7.25% of $24.00 = $1.74.
+    expect(row('Tax (CA 7.25%)')).toHaveTextContent('$1.74');
+    expect(row('Total')).toHaveTextContent('$40.69');
+    expect(JSON.parse(localStorage.getItem('tanelt:estimate')!)).toEqual({ state: 'CA', method: 'express' });
+  });
+
+  it('notes clothing exemptions', async () => {
+    seedOne('organic-cotton-tee', 1);
+    renderRoute('/cart');
+    await userEvent.selectOptions(within(summary()).getByRole('combobox', { name: 'Ship to' }), 'PA');
+    expect(row('Tax (PA 6%)')).toHaveTextContent('$0.36');
+    expect(within(summary()).getByText("Pennsylvania doesn't tax apparel items.")).toBeInTheDocument();
+  });
+
+  it('marks standard shipping free over the threshold but still charges for faster methods', async () => {
+    seedOne('washed-linen-throw', 1); // $96
+    renderRoute('/cart');
+    expect(row('Shipping (standard)')).toHaveTextContent('Free');
+    await userEvent.click(within(summary()).getByRole('radio', { name: /express/i }));
+    expect(row('Shipping (express)')).toHaveTextContent('$14.95');
+  });
+
+  it('drops next day for Hawaii and falls back to standard', async () => {
+    localStorage.setItem('tanelt:estimate', JSON.stringify({ state: null, method: 'next-day' }));
+    seedOne('cedar-and-vetiver-soap', 1);
+    renderRoute('/cart');
+    expect(row('Shipping (next day)')).toHaveTextContent('$24.95');
+
+    await userEvent.selectOptions(within(summary()).getByRole('combobox', { name: 'Ship to' }), 'HI');
+    expect(within(summary()).queryByRole('radio', { name: /next day/i })).not.toBeInTheDocument();
+    expect(within(summary()).getByText("Next-day delivery isn't available to Hawaii.")).toBeInTheDocument();
+    expect(row('Shipping (standard)')).toHaveTextContent('$15.95');
+  });
+
+  it('ignores a damaged saved estimate', () => {
+    localStorage.setItem('tanelt:estimate', JSON.stringify({ state: 7, method: 'teleport' }));
+    seedOne('cedar-and-vetiver-soap', 1);
+    renderRoute('/cart');
+    expect(row('Shipping (standard)')).toBeInTheDocument();
+  });
+});
