@@ -98,3 +98,104 @@ export function AdminCustomerDetailPage() {
                         <td>{formatOrderDate(order.placedAt)}</td>
                         <td className={styles.number}>{itemCountOf(order)}</td>
                         <td className={styles.number}>{formatMoney(order.totals.total)}</td>
+                        <td>
+                          <OrderStatusBadge status={order.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {returns.length > 0 && (
+            <section className={styles.panel} aria-labelledby="customer-returns-title">
+              <h3 id="customer-returns-title" className={styles.legend}>
+                <HeadingIcon icon={Undo2} />
+                Returns
+              </h3>
+              <ul className={styles.plainList}>
+                {returns.map((request) => (
+                  <li key={request.id}>
+                    <span>
+                      <Link to={`/admin/returns/${request.id}`} className={styles.rowLink}>
+                        {request.id}
+                      </Link>
+                      <span className={styles.muted}>
+                        {' '}
+                        · {formatReturnDate(request.createdAt)} · {returnItemCount(request)} items · {formatMoney(request.refund)}
+                      </span>
+                    </span>
+                    <ReturnStatusBadge status={request.status} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        <aside className={styles.formSide}>
+          <NotePanel key={note?.at ?? 'none'} customerKey={customer.key} saved={note} />
+        </aside>
+      </div>
+    </article>
+  );
+}
+
+function NotePanel({ customerKey, saved }: { customerKey: string; saved?: CustomerNote }) {
+  const { token } = useAuth();
+  const { toast } = useToast();
+  const [current, setCurrent] = useState(saved ?? null);
+  const [text, setText] = useState(saved?.text ?? '');
+  const [busy, setBusy] = useState(false);
+  const fieldId = useId();
+  const hintId = useId();
+  const unchanged = text.trim() === (current?.text ?? '');
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const note = await saveCustomerNote(token!, customerKey, text);
+      setCurrent(note);
+      setText(note?.text ?? '');
+      toast({ title: note ? 'Note saved' : 'Note removed' });
+    } catch (error) {
+      toast({ tone: 'error', title: "Couldn't save the note", description: isApiError(error) ? error.message : undefined });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={styles.panel} aria-labelledby="customer-note-title">
+      <h3 id="customer-note-title" className={styles.legend}>
+        <HeadingIcon icon={NotebookPen} />
+        Studio note
+      </h3>
+      <form className={styles.statusForm} onSubmit={save} noValidate>
+        <div className={styles.field}>
+          <label htmlFor={fieldId} className={styles.label}>
+            Only the team sees this
+          </label>
+          <textarea
+            id={fieldId}
+            className={styles.textarea}
+            rows={4}
+            maxLength={CUSTOMER_NOTE_MAX}
+            value={text}
+            aria-describedby={hintId}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <p id={hintId} className={styles.hint}>
+            {current ? `Last saved by ${current.by}, ${formatEventTime(current.at)}` : 'Sizes they prefer, a gift they were planning, anything useful.'}
+          </p>
+        </div>
+        <Button type="submit" size="sm" block loading={busy} disabled={unchanged}>
+          {current && !text.trim() ? 'Remove note' : 'Save note'}
+        </Button>
+      </form>
+    </section>
+  );
+}
