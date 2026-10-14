@@ -138,3 +138,143 @@ function ReturnForm({ order, remaining, deadline }: ReturnFormProps) {
     }
   }
 
+  return (
+    <form className={styles.layout} onSubmit={submit} noValidate aria-labelledby="return-title">
+      <div className={styles.main}>
+        <header>
+          <h2 id="return-title" className={styles.title}>
+            <HeadingIcon icon={Undo2} />
+            Return items
+          </h2>
+          <p className={styles.muted}>
+            Order {order.id} · Returns close {formatReturnDate(deadline)}
+          </p>
+        </header>
+
+        {(errors.form || serverError) && (
+          <p className={styles.alert} role="alert">
+            <CircleAlert aria-hidden="true" />
+            {errors.form ?? serverError}
+          </p>
+        )}
+
+        <section className={styles.card} aria-labelledby="items-title">
+          <h3 id="items-title" className={styles.cardTitle}>
+            Which items?
+          </h3>
+          <ul className={styles.items}>
+            {order.lines.map((line) => {
+              const left = remaining.get(line.variantId) ?? 0;
+              const chosen = draft.find((entry) => entry.variantId === line.variantId)!;
+              const error = errors[line.variantId];
+              return (
+                <li key={line.variantId}>
+                  <fieldset className={styles.item} disabled={left === 0} data-chosen={chosen.quantity > 0 || undefined}>
+                    <legend className="visually-hidden">{line.name}</legend>
+                    <ProductArt art={line.art} color={line.swatch} className={styles.thumb} />
+                    <div className={styles.itemBody}>
+                      <label className={styles.check}>
+                        <input
+                          type="checkbox"
+                          checked={chosen.quantity > 0}
+                          onChange={(event) => update(line.variantId, { quantity: event.target.checked ? 1 : 0, reason: '' })}
+                        />
+                        <span>
+                          <span className={styles.itemName}>Return {line.name}</span>
+                          <span className={styles.muted}>
+                            {[describeOptions(line.options), `${formatMoney(line.unitPrice)} each`, left === 0 ? 'Already in a return' : `${left} of ${line.quantity} can go back`]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </span>
+                      </label>
+                      {chosen.quantity > 0 && (
+                        <div className={styles.itemFields}>
+                          {left > 1 && (
+                            <SelectField
+                              label="How many"
+                              value={String(chosen.quantity)}
+                              options={Array.from({ length: left }, (_, index) => ({ value: String(index + 1), label: String(index + 1) }))}
+                              onChange={(event) => update(line.variantId, { quantity: Number(event.target.value) })}
+                            />
+                          )}
+                          <SelectField
+                            label="Reason"
+                            placeholder="Choose a reason"
+                            value={chosen.reason}
+                            options={RETURN_REASONS}
+                            error={error}
+                            required
+                            onChange={(event) => update(line.variantId, { reason: event.target.value as ReturnReason })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </fieldset>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <fieldset className={styles.card}>
+          <legend className={cx(styles.cardTitle, styles.legend)}>How will you send it back?</legend>
+          <div className={styles.options}>
+            {RETURN_METHODS.map((option) => (
+              <label key={option.value} className={styles.option}>
+                <input type="radio" name="return-method" value={option.value} checked={method === option.value} onChange={() => setMethod(option.value)} />
+                <span className={styles.optionText}>
+                  <span className={styles.optionName}>{option.label}</span>
+                  <span className={styles.muted}>{option.description}</span>
+                </span>
+                <span className={styles.optionPrice}>Free</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <section className={styles.card}>
+          <label htmlFor={noteId} className={styles.cardTitle}>
+            Anything we should know? <span className={styles.optional}>(optional)</span>
+          </label>
+          <textarea
+            id={noteId}
+            className={styles.textarea}
+            rows={3}
+            value={note}
+            maxLength={RETURN_NOTE_MAX}
+            onChange={(event) => setNote(event.target.value)}
+          />
+          <p className={styles.hint}>
+            Photos of any damage help. Reply to our email with them. {note.length} / {RETURN_NOTE_MAX}
+          </p>
+        </section>
+      </div>
+
+      <aside className={styles.summary} aria-label="Refund">
+        <h3 className={styles.cardTitle}>Your refund</h3>
+        <dl className={styles.totals}>
+          <div>
+            <dt>Items</dt>
+            <dd>{chosenCount}</dd>
+          </div>
+          <div>
+            <dt>Return shipping</dt>
+            <dd>Free</dd>
+          </div>
+          <div data-tone="total">
+            <dt>Estimated refund</dt>
+            <dd aria-live="polite">{formatMoney(refund)}</dd>
+          </div>
+        </dl>
+        <p className={styles.muted}>
+          Back to {describeCard(order.card)} once the items reach us. Any promo discount and tax are refunded in proportion; the original
+          shipping isn't.
+        </p>
+        <Button type="submit" loading={busy} leadingIcon={<Undo2 />} className={styles.submit}>
+          Request return
+        </Button>
+      </aside>
+    </form>
+  );
+}

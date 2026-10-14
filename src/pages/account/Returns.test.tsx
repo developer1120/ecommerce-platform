@@ -123,3 +123,128 @@ describe('returns on the server', () => {
   });
 
   it('lets the shopper cancel a request until the studio acts on it', async () => {
+    const ada = await shopper();
+    const order = await orderFor(ada);
+    const request = await requestReturn(ada, { orderId: order.id, method: 'drop-off', lines: [{ variantId: mugLine(order).variantId, quantity: 2, reason: 'too-large' }] });
+
+    const grace = await shopper('grace@example.com', 'Grace Hopper');
+    await expect(cancelReturn(grace, request.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const cancelled = await cancelReturn(ada, request.id);
+    expect(cancelled.status).toBe('cancelled');
+    expect(cancelled.history.map((event) => event.status)).toEqual(['requested', 'cancelled']);
+    await expect(cancelReturn(ada, request.id)).rejects.toMatchObject({ code: 'CONFLICT' });
+    // Cancelled items can go back again, in a new request with the next number.
+    expect((await getOrderReturns(ada, order.id)).remaining[mugLine(order).variantId]).toBe(2);
+    const again = await requestReturn(ada, { orderId: order.id, method: 'drop-off', lines: [{ variantId: mugLine(order).variantId, quantity: 1, reason: 'too-large' }] });
+    expect(again.id).toBe(`RT-${order.id.slice(3)}-2`);
+    expect((await listMyReturns(ada)).map((entry) => entry.id)).toEqual([again.id, request.id]);
+    expect(await listMyReturns(grace)).toEqual([]);
+  });
+});
+
+describe('returning items from the account', () => {
+  async function signedIn() {
+    const token = await shopper();
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(token));
+    return token;
+  }
+
+  it('offers a return on a delivered order, with the deadline', async () => {
+    const order = await orderFor(await signedIn());
+    renderRoute(`/account/orders/${order.id}`);
+    const returns = await screen.findByRole('region', { name: 'Returns' });
+    expect(await within(returns).findByText('October 31, 2026')).toBeInTheDocument();
+    expect(within(returns).getByRole('link', { name: 'Start a return' })).toHaveAttribute('href', `/account/orders/${order.id}/return`);
+  });
+
+  it('explains why a shipped order cannot be returned yet, and hides returns before shipping', async () => {
+    const token = await signedIn();
+    const shipped = await orderFor(token, 'shipped');
+    const { router } = renderRoute(`/account/orders/${shipped.id}`);
+    const returns = await screen.findByRole('region', { name: 'Returns' });
+    expect(await within(returns).findByText('You can start a return once your order arrives.')).toBeInTheDocument();
+
+    const packed = await orderFor(token, 'packed');
+    await router.navigate(`/account/orders/${packed.id}`);
+    expect(await main().findByRole('heading', { name: `Order ${packed.id}` })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Returns' })).not.toBeInTheDocument();
+  });
+
+  it('walks through a return request', async () => {
+    const user = userEvent.setup();
+    const order = await orderFor(await signedIn());
+    const { router } = renderRoute(`/account/orders/${order.id}/return`);
+    expect(await main().findByRole('heading', { name: 'Return items' })).toBeInTheDocument();
+    const refund = () => within(screen.getByRole('complementary', { name: 'Refund' }));
+
+    await user.click(main().getByRole('button', { name: 'Request return' }));
+    expect(main().getByRole('alert')).toHaveTextContent('Choose at least one item to return');
+
+    const mug = main().getByRole('group', { name: MUG.name });
+    await user.click(within(mug).getByRole('checkbox', { name: new RegExp(`Return ${MUG.name}`) }));
+    expect(main().queryByRole('alert')).not.toBeInTheDocument();
+    await user.selectOptions(within(mug).getByLabelText('How many'), '2');
+    await user.click(main().getByRole('button', { name: 'Request return' }));
+    expect(within(mug).getByLabelText(/^Reason/)).toHaveAccessibleDescription('Choose a reason');
+
+    await user.selectOptions(within(mug).getByLabelText(/^Reason/), 'too-large');
+    expect(refund().getByText('2')).toBeInTheDocument();
+    await user.click(main().getByRole('radio', { name: /Book a pickup/ }));
+    await user.type(main().getByLabelText(/Anything we should know/), 'Lovely, just too big.');
+    await user.click(main().getByRole('button', { name: 'Request return' }));
+
+    expect(await screen.findByText('Return requested')).toBeInTheDocument();
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/account/orders/${order.id}`));
+    const returns = await screen.findByRole('region', { name: 'Returns' });
+    const request = await within(returns).findByRole('article', { name: `Return RT-${order.id.slice(3)}-1` });
+    expect(request).toHaveTextContent(`2 × ${MUG.name}`);
+    expect(request).toHaveTextContent('Too large');
+    expect(request).toHaveTextContent('Book a pickup');
+    expect(within(request).getByText('Requested', { selector: 'span' })).toBeInTheDocument();
+    expect(loadReturns()[0]!.note).toBe('Lovely, just too big.');
+  });
+
+  it('does not offer items already in a return', async () => {
+    const token = await signedIn();
+    const order = await orderFor(token);
+    await requestReturn(token, { orderId: order.id, method: 'drop-off', lines: [{ variantId: incenseLine(order).variantId, quantity: 1, reason: 'changed-mind' }] });
+    renderRoute(`/account/orders/${order.id}/return`);
+    const incense = await main().findByRole('group', { name: INCENSE.name });
+    expect(incense).toBeDisabled();
+    expect(incense).toHaveTextContent('Already in a return');
+  });
+
+  it('cancels a return from the returns page', async () => {
+    const user = userEvent.setup();
+    const token = await signedIn();
+    const order = await orderFor(token);
+    const request = await requestReturn(token, { orderId: order.id, method: 'drop-off', lines: [{ variantId: mugLine(order).variantId, quantity: 1, reason: 'damaged' }] });
+    renderRoute('/account/returns');
+    const nav = await screen.findByRole('navigation', { name: 'Account' });
+    expect(within(nav).getByRole('link', { name: 'Returns' })).toHaveAttribute('aria-current', 'page');
+
+    const inProgress = await main().findByRole('region', { name: /In progress/ });
+    const card = within(inProgress).getByRole('article', { name: `Return ${request.id}` });
+    expect(within(card).getByRole('link', { name: order.id })).toHaveAttribute('href', `/account/orders/${order.id}`);
+    await user.click(within(card).getByRole('button', { name: 'Cancel return' }));
+    await user.click(within(card).getByRole('button', { name: 'Yes, cancel it' }));
+
+    expect(await screen.findByText('Return cancelled')).toBeInTheDocument();
+    const finished = await main().findByRole('region', { name: /Finished/ });
+    expect(within(finished).getByRole('article', { name: `Return ${request.id}` })).toHaveTextContent('You cancelled this return.');
+    expect(within(main().getByRole('region', { name: /In progress/ })).getByText('Nothing in progress.')).toBeInTheDocument();
+  });
+
+  it('says when there are no returns', async () => {
+    await signedIn();
+    renderRoute('/account/returns');
+    expect(await main().findByText(/No returns\./)).toBeInTheDocument();
+  });
+
+  it('keeps others away from the return form', async () => {
+    const order = await orderFor(await shopper('grace@example.com', 'Grace Hopper'));
+    await signedIn();
+    renderRoute(`/account/orders/${order.id}/return`);
+    expect(await main().findByText("We can't find that order")).toBeInTheDocument();
+  });
+});
