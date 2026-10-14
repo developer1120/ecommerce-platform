@@ -159,3 +159,164 @@ function Report({ report }: { report: SalesReport }) {
                   <span className={styles.shareLabel}>
                     <span>{capitalize(entry.department)}</span>
                     <span>
+                      {formatMoney(entry.sales)} · {PERCENT.format(entry.share)}
+                    </span>
+                  </span>
+                  <span className={styles.shareTrack} aria-hidden="true">
+                    <span className={styles.shareFill} style={{ width: `${Math.max(entry.share * 100, 1)}%` }} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={adminStyles.panel} aria-labelledby="promos-title">
+          <h3 id="promos-title" className={adminStyles.legend}>
+            <HeadingIcon icon={TicketPercent} />
+            Promo codes
+          </h3>
+          {report.promos.length === 0 ? (
+            <p className={adminStyles.muted}>No promo codes used in this period.</p>
+          ) : (
+            <table className={styles.compact}>
+              <thead>
+                <tr>
+                  <th scope="col">Code</th>
+                  <th scope="col">Orders</th>
+                  <th scope="col">Discount given</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.promos.map((promo) => (
+                  <tr key={promo.code}>
+                    <th scope="row" className={adminStyles.code}>
+                      {promo.code}
+                    </th>
+                    <td>{promo.orders}</td>
+                    <td>{formatMoney(promo.discount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <section className={adminStyles.panel} aria-labelledby="stock-title">
+          <h3 id="stock-title" className={adminStyles.legend}>
+            <HeadingIcon icon={TriangleAlert} />
+            Running low
+          </h3>
+          {report.lowStock.length === 0 ? (
+            <p className={adminStyles.muted}>Everything on sale is well stocked.</p>
+          ) : (
+            <ul className={styles.stockList}>
+              {report.lowStock.map((item) => (
+                <li key={item.variantId}>
+                  <Link to={`/admin/products/${item.productId}`}>
+                    {item.name}
+                    {item.option && ` (${item.option})`}
+                  </Link>
+                  <span className={styles.stockCount} data-out={item.stock === 0 || undefined}>
+                    {item.stock === 0 ? 'Sold out' : `${item.stock} left`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </>
+  );
+}
+
+interface StatProps {
+  label: string;
+  value: string;
+  current: number;
+  previous: number;
+  days: number;
+  children?: ReactNode;
+}
+
+function Stat({ label, value, current, previous, days, children }: StatProps) {
+  const change = percentChange(current, previous);
+  const direction = change === null || change === 0 ? 'flat' : change > 0 ? 'up' : 'down';
+  const Icon = direction === 'up' ? TrendingUp : direction === 'down' ? TrendingDown : Minus;
+  const text =
+    change === null
+      ? `Nothing in the previous ${days} days`
+      : change === 0
+        ? `Same as the previous ${days} days`
+        : `${change > 0 ? 'Up' : 'Down'} ${Math.abs(change)}% on the previous ${days} days`;
+  return (
+    <div className={styles.stat}>
+      <dt className={styles.statLabel}>{label}</dt>
+      <dd className={styles.statValue}>{value}</dd>
+      <dd className={styles.change} data-direction={direction}>
+        <Icon aria-hidden="true" />
+        {text}
+      </dd>
+      {children && <dd>{children}</dd>}
+    </div>
+  );
+}
+
+/** A bar per day, with the same numbers in a table for anyone who can't see the bars. */
+function DailyChart({ daily }: { daily: DayPoint[] }) {
+  const max: Cents = Math.max(...daily.map((day) => day.netSales));
+  const best = daily.find((day) => day.netSales === max)!;
+  const first = daily[0]!;
+  const last = daily[daily.length - 1]!;
+
+  return (
+    <figure className={styles.chart}>
+      <div className={styles.plot} aria-hidden="true">
+        <span className={styles.axisMax}>{formatMoney(max, { compact: true })}</span>
+        <div className={styles.bars} data-dense={daily.length > 31 || undefined}>
+          {daily.map((day) => (
+            <span
+              key={day.date}
+              className={styles.bar}
+              data-empty={day.netSales === 0 || undefined}
+              style={{ height: `${max > 0 ? Math.max((day.netSales / max) * 100, 2) : 2}%` }}
+              title={`${shortDate(day.date)}: ${formatMoney(day.netSales)} from ${plural(day.orders, 'order')}`}
+            />
+          ))}
+        </div>
+        <span className={styles.axisDates}>
+          <span>{shortDate(first.date)}</span>
+          <span>{shortDate(last.date)}</span>
+        </span>
+      </div>
+      <figcaption className={adminStyles.muted}>
+        Best day: {shortDate(best.date)}, {formatMoney(best.netSales)} from {plural(best.orders, 'order')}.
+      </figcaption>
+      <details className={styles.details}>
+        <summary>Show the numbers</summary>
+        <div className={adminStyles.tableWrap}>
+          <table className={styles.compact}>
+            <thead>
+              <tr>
+                <th scope="col">Day</th>
+                <th scope="col">Orders</th>
+                <th scope="col">Net sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daily
+                .filter((day) => day.orders > 0)
+                .map((day) => (
+                  <tr key={day.date}>
+                    <th scope="row">{shortDate(day.date)}</th>
+                    <td>{day.orders}</td>
+                    <td>{formatMoney(day.netSales)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </figure>
+  );
+}
