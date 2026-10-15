@@ -102,3 +102,107 @@ describe('the shopper’s messages', () => {
       'page',
     );
   });
+
+  it('opens a conversation from the contact form and keeps it going', async () => {
+    const user = userEvent.setup();
+    renderRoute('/help/contact?topic=product');
+    await user.type(await main().findByLabelText('Subject'), 'Mug glaze');
+    await user.type(main().getByLabelText('Message'), 'Is the moss glaze darker in person?');
+    await user.click(main().getByRole('button', { name: 'Send message' }));
+    await user.click(await main().findByRole('link', { name: 'See the conversation' }));
+
+    expect(await main().findByRole('heading', { level: 2, name: 'Mug glaze' })).toBeInTheDocument();
+    expect(main().getByText('Waiting for the studio')).toBeInTheDocument();
+    const thread = main().getByRole('list', { name: 'Conversation' });
+    expect(within(thread).getAllByRole('article')).toHaveLength(1);
+
+    await user.click(main().getByRole('button', { name: 'Send reply' }));
+    expect(main().getByText('Write a reply')).toBeInTheDocument();
+    await user.type(main().getByLabelText('Your reply'), 'Also, do you ship to Hawaii?');
+    await user.click(main().getByRole('button', { name: 'Send reply' }));
+    await waitFor(() => expect(within(thread).getAllByRole('article')).toHaveLength(2));
+    expect(main().getByLabelText('Your reply')).toHaveValue('');
+
+    await user.click(main().getByRole('button', { name: 'Mark as resolved' }));
+    expect(await screen.findByText('Marked as resolved')).toBeInTheDocument();
+    expect(main().getByText('This conversation is closed. Replying opens it again.')).toBeInTheDocument();
+    expect(loadTickets()[0]).toMatchObject({ status: 'closed' });
+  });
+
+  it('lists conversations with the latest word', async () => {
+    const token = JSON.parse(localStorage.getItem(SESSION_TOKEN_KEY)!) as string;
+    const ticket = await submitContact(token, message());
+    await replyToTicket(await admin(), ticket.id, { body: 'It is a touch darker, yes.', seen: 1 });
+    renderRoute('/account/messages');
+    const card = await main().findByRole('link', { name: `Mug glaze, ${ticket.id}` });
+    expect(card).toHaveTextContent('Replied');
+    expect(card).toHaveTextContent('Studio: It is a touch darker, yes.');
+    expect(card).toHaveTextContent('2 messages');
+  });
+});
+
+describe('the support inbox', () => {
+  beforeEach(async () => {
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(await admin()));
+  });
+
+  it('puts the longest wait first and flags overdue replies', async () => {
+    const old = await submitContact(null, message({ subject: 'Old question' }));
+    vi.advanceTimersByTime(30 * HOUR);
+    await submitContact(null, message({ name: 'Grace Hopper', email: 'grace@example.com', subject: 'New question' }));
+    const answered = await submitContact(null, message({ name: 'Ken', email: 'ken@example.com', subject: 'Answered' }));
+    await replyToTicket(JSON.parse(localStorage.getItem(SESSION_TOKEN_KEY)!) as string, answered.id, { body: 'Done', seen: 1 });
+
+    const user = userEvent.setup();
+    renderRoute('/admin/support');
+    const table = await main().findByRole('table');
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows.map((row) => within(row).getByRole('rowheader').querySelector('a')!.textContent)).toEqual(['Old question', 'New question']);
+    expect(rows[0]).toHaveTextContent('30 hours');
+    expect(rows[1]).toHaveTextContent('Under an hour');
+    expect(main().getByRole('button', { name: 'Needs reply, 2 conversations' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(main().getByRole('button', { name: 'Waiting on shopper, 1 conversation' }));
+    expect(within(main().getByRole('table')).getByRole('link', { name: 'Answered' })).toBeInTheDocument();
+    await user.click(main().getByRole('button', { name: 'All, 3 conversations' }));
+    await user.type(main().getByRole('textbox', { name: 'Search messages' }), 'grace');
+    expect(within(main().getByRole('table')).getAllByRole('row')).toHaveLength(2);
+    expect(old.id).toBe('HC-1001');
+  });
+
+  it('answers with a saved reply and closes the conversation', async () => {
+    const shopper = await ada();
+    const ticket = await submitContact(shopper, message({ topic: 'other', subject: 'Thank you' }));
+    const user = userEvent.setup();
+    renderRoute(`/admin/support/${ticket.id}`);
+    expect(await main().findByRole('heading', { level: 2, name: 'Thank you' })).toBeInTheDocument();
+    expect(main().getByText('Has an account · 0 orders')).toBeInTheDocument();
+
+    await user.selectOptions(main().getByLabelText('Start from a saved reply'), 'Glad to help, closing');
+    expect(main().getByLabelText('Your reply')).toHaveValue(
+      "Hi Ada,\n\nGlad that's sorted. I'll close this conversation, but just reply if anything else comes up.",
+    );
+    await user.click(main().getByRole('checkbox', { name: 'Close the conversation after sending' }));
+    await user.click(main().getByRole('button', { name: 'Send reply' }));
+
+    expect(await screen.findByText('Reply sent and closed')).toBeInTheDocument();
+    expect(main().getByRole('button', { name: 'Reopen conversation' })).toBeInTheDocument();
+    expect(within(main().getByRole('list', { name: 'Conversation' })).getAllByRole('article')).toHaveLength(2);
+    expect(loadOutbox().at(-1)).toMatchObject({ to: 'ada@example.com', subject: `Re: Thank you [${ticket.id}]` });
+  });
+
+  it('reloads instead of replying when the shopper has written meanwhile', async () => {
+    const shopper = await ada();
+    const ticket = await submitContact(shopper, message());
+    const user = userEvent.setup();
+    renderRoute(`/admin/support/${ticket.id}`);
+    await user.type(await main().findByLabelText('Your reply'), 'Yes, a little.');
+    await replyAsShopper(shopper, ticket.id, 'Actually, never mind!');
+    await user.click(main().getByRole('button', { name: 'Send reply' }));
+
+    expect(await screen.findByText('New message from the shopper')).toBeInTheDocument();
+    await waitFor(() => expect(within(main().getByRole('list', { name: 'Conversation' })).getAllByRole('article')).toHaveLength(2));
+    expect(main().getByText('Actually, never mind!')).toBeInTheDocument();
+    expect(loadOutbox().filter((email) => email.subject.startsWith('Re:'))).toHaveLength(0);
+  });
+});
