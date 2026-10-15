@@ -107,3 +107,113 @@ describe('processing returns on the server', () => {
 
   it('refunds up to the estimate, explains a lower one, and records it on the order', async () => {
     const token = await admin();
+    const { order, request, shopper } = await returnOf();
+    await updateReturn(token, request.id, { to: 'approved', expected: 'requested' });
+    await updateReturn(token, request.id, { to: 'received', expected: 'approved' });
+
+    const refund = (amount: number, note?: string) => updateReturn(token, request.id, { to: 'refunded', expected: 'received', amount, note });
+    await expect(refund(request.refund + 1)).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringMatching(/^You can refund up to/) });
+    await expect(refund(0)).rejects.toMatchObject({ message: 'Refund more than $0.00' });
+    await expect(refund(request.refund - 500)).rejects.toMatchObject({ message: 'Say why the refund is less than expected.' });
+
+    const { request: refunded } = await refund(request.refund - 500, 'One mug came back used.');
+    expect(refunded).toMatchObject({ status: 'refunded', refund: request.refund - 500 });
+    expect(findOrder(order.id)!.refunds).toEqual([{ returnId: request.id, amount: request.refund - 500, at: expect.any(String) }]);
+    expect(lastEmail().body).toContain('One mug came back used.');
+    expect((await getOrder(order.id, shopper)).refunds).toHaveLength(1);
+  });
+});
+
+describe('the returns pages', () => {
+  async function signedInAdmin() {
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(await admin()));
+  }
+
+  it('lists returns by what needs doing, with search', async () => {
+    const user = userEvent.setup();
+    const { request } = await returnOf();
+    await signedInAdmin();
+    renderRoute('/admin/returns');
+    expect(await main().findByRole('heading', { name: 'Returns', level: 2 })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Admin' })).getByRole('link', { name: 'Returns' })).toHaveAttribute('aria-current', 'page');
+    expect(main().getByRole('button', { name: 'To review, 1 return' })).toHaveAttribute('aria-pressed', 'true');
+    expect(main().getByRole('link', { name: request.id })).toHaveAttribute('href', `/admin/returns/${request.id}`);
+
+    await user.type(main().getByRole('textbox', { name: 'Search returns' }), 'grace');
+    expect(main().getByText('No returns match "grace".')).toBeInTheDocument();
+    await user.clear(main().getByRole('textbox', { name: 'Search returns' }));
+
+    await user.click(main().getByRole('button', { name: 'To refund, 0 returns' }));
+    expect(main().getByText('Nothing waiting for a refund.')).toBeInTheDocument();
+  });
+
+  it('takes a return from request to refund', async () => {
+    const user = userEvent.setup();
+    const { order, request } = await returnOf();
+    const variant = order.lines[0]!.variantId;
+    await signedInAdmin();
+    renderRoute(`/admin/returns/${request.id}`);
+    expect(await main().findByRole('heading', { name: `Return ${request.id}` })).toBeInTheDocument();
+    expect(main().getByText('One has a hairline crack.')).toBeInTheDocument();
+    expect(main().getByRole('link', { name: order.id })).toHaveAttribute('href', `/admin/orders/${order.id}`);
+    expect(main().getByRole('rowheader', { name: new RegExp(MUG.name) })).toBeInTheDocument();
+    expect(main().getByRole('cell', { name: 'Arrived damaged' })).toBeInTheDocument();
+
+    await user.click(main().getByRole('button', { name: 'Approve and send label' }));
+    expect(await screen.findByText('Return approved')).toBeInTheDocument();
+    expect(await main().findByRole('button', { name: 'Mark as received' })).toBeInTheDocument();
+
+    const stock = findVariant(variant)!.variant.stock;
+    await user.click(main().getByRole('checkbox', { name: 'Put the items back in stock' }));
+    await user.click(main().getByRole('button', { name: 'Mark as received' }));
+    expect(await screen.findByText('Nothing was restocked.')).toBeInTheDocument();
+    expect(findVariant(variant)!.variant.stock).toBe(stock);
+
+    const amount = await main().findByRole('textbox', { name: 'Refund amount' });
+    await user.clear(amount);
+    await user.type(amount, '5.00');
+    await user.click(main().getByRole('button', { name: 'Issue refund' }));
+    expect(main().getByText('Say why the refund is less than expected')).toBeInTheDocument();
+    await user.type(main().getByLabelText(/Message to the shopper/), 'The glaze was scratched.');
+    await user.click(main().getByRole('button', { name: 'Issue refund' }));
+
+    expect(await screen.findByText('Refund issued')).toBeInTheDocument();
+    expect(await main().findByText('Refunded. Nothing more to do.')).toBeInTheDocument();
+    const history = main().getByRole('list', { name: 'History' });
+    expect(within(history).getAllByRole('listitem').map((item) => item.firstChild!.textContent)).toEqual([
+      'Refunded',
+      'Received',
+      'Approved',
+      'Requested',
+    ]);
+    expect(within(history).getByText('The glaze was scratched.')).toBeInTheDocument();
+    await waitFor(() => expect(findOrder(order.id)!.refunds?.[0]?.amount).toBe(500));
+  });
+
+  it('needs a message to decline', async () => {
+    const user = userEvent.setup();
+    const { request } = await returnOf();
+    await signedInAdmin();
+    renderRoute(`/admin/returns/${request.id}`);
+    await user.click(await main().findByRole('button', { name: 'Decline return' }));
+    expect(main().getByText('Tell the shopper why')).toBeInTheDocument();
+
+    await user.type(main().getByLabelText(/Message to the shopper/), 'Outside our policy for opened candles.');
+    await user.click(main().getByRole('button', { name: 'Decline return' }));
+    expect(await screen.findByText('Return declined')).toBeInTheDocument();
+    expect(await main().findByText('Declined. The shopper has been told why.')).toBeInTheDocument();
+  });
+
+  it('shows the refund on the shopper’s order', async () => {
+    const { order, request, shopper } = await returnOf();
+    const token = await admin();
+    await updateReturn(token, request.id, { to: 'approved', expected: 'requested' });
+    await updateReturn(token, request.id, { to: 'received', expected: 'approved' });
+    await updateReturn(token, request.id, { to: 'refunded', expected: 'received' });
+    localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(shopper));
+    renderRoute(`/account/orders/${order.id}`);
+    expect(await main().findByText(`Refunded for return ${request.id}`)).toBeInTheDocument();
+    const returns = await screen.findByRole('region', { name: 'Returns' });
+    expect(await within(returns).findByText('Refunded to your card. It can take 5 to 10 days to show.')).toBeInTheDocument();
+  });
+});

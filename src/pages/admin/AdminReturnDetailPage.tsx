@@ -167,3 +167,173 @@ export function AdminReturnDetailPage() {
         </aside>
       </div>
     </article>
+  );
+}
+
+interface ReturnActionsProps {
+  request: AdminReturn['request'];
+  onSaved: (request: ReturnRequest) => void;
+  /** Called when the return changed elsewhere, to load it again. */
+  onStale: () => void;
+}
+
+const DONE: Partial<Record<ReturnStatus, string>> = {
+  refunded: 'Refunded. Nothing more to do.',
+  rejected: 'Declined. The shopper has been told why.',
+  cancelled: 'The shopper cancelled this return.',
+};
+
+function ReturnActions({ request, onSaved, onStale }: ReturnActionsProps) {
+  const { token } = useAuth();
+  const { toast } = useToast();
+  const next = NEXT_RETURN_STATUSES[request.status];
+  const forward = next.find((status) => status !== 'rejected');
+  const canDecline = next.includes('rejected');
+  const [note, setNote] = useState('');
+  const [restock, setRestock] = useState(true);
+  const [amount, setAmount] = useState((request.refund / 100).toFixed(2));
+  const [errors, setErrors] = useState<{ note?: string; amount?: string }>({});
+  const [busy, setBusy] = useState<ReturnStatus | null>(null);
+  const noteId = useId();
+  const noteHelpId = useId();
+
+  if (!forward && !canDecline) {
+    return (
+      <section className={styles.panel} aria-labelledby="return-status-title">
+        <h3 id="return-status-title" className={styles.legend}>
+          <HeadingIcon icon={RefreshCw} />
+          Status
+        </h3>
+        <p className={styles.muted}>{DONE[request.status]}</p>
+      </section>
+    );
+  }
+
+  const cents = parseMoney(amount);
+  const lower = forward === 'refunded' && cents !== null && cents < request.refund;
+
+  function check(to: ReturnStatus): boolean {
+    const found: typeof errors = {};
+    if (to === 'rejected' && !note.trim()) found.note = 'Tell the shopper why';
+    if (to === 'refunded') {
+      const problem = validateRefund(cents, request.refund);
+      if (problem) found.amount = problem;
+      else if (lower && !note.trim()) found.note = 'Say why the refund is less than expected';
+    }
+    setErrors(found);
+    return Object.keys(found).length === 0;
+  }
+
+  async function move(to: ReturnStatus) {
+    if (!check(to)) return;
+    setBusy(to);
+    try {
+      const result = await updateReturn(token!, request.id, {
+        to,
+        expected: request.status,
+        ...(note.trim() && { note }),
+        ...(to === 'received' && { restock }),
+        ...(to === 'refunded' && { amount: cents! }),
+      });
+      onSaved(result.request);
+      toast(successToast(result.request, to, result.restocked));
+    } catch (error) {
+      if (isApiError(error) && error.code === 'CONFLICT') {
+        toast({ tone: 'error', title: 'This return changed', description: `${error.message} We've loaded the latest version.` });
+        onStale();
+      } else {
+        toast({ tone: 'error', title: "Couldn't update the return", description: isApiError(error) ? error.message : undefined });
+      }
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section className={styles.panel} aria-labelledby="return-status-title">
+      <h3 id="return-status-title" className={styles.legend}>
+        <HeadingIcon icon={RefreshCw} />
+        Next step
+      </h3>
+      <form
+        className={styles.statusForm}
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (forward) void move(forward);
+        }}
+      >
+        {forward === 'received' && (
+          <label className={styles.checkRow}>
+            <input type="checkbox" checked={restock} onChange={(event) => setRestock(event.target.checked)} />
+            Put the items back in stock
+          </label>
+        )}
+        {forward === 'refunded' && (
+          <TextField
+            label="Refund amount"
+            inputMode="decimal"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            error={errors.amount}
+            hint={`Up to ${formatMoney(request.refund)}`}
+          />
+        )}
+        <div className={styles.field}>
+          <label htmlFor={noteId} className={styles.label}>
+            Message to the shopper {canDecline || lower ? '' : '(optional)'}
+          </label>
+          <textarea
+            id={noteId}
+            className={styles.textarea}
+            rows={3}
+            maxLength={NOTE_MAX}
+            value={note}
+            aria-invalid={errors.note ? true : undefined}
+            aria-describedby={noteHelpId}
+            onChange={(event) => {
+              setNote(event.target.value);
+              if (errors.note) setErrors((current) => ({ ...current, note: undefined }));
+            }}
+          />
+          <p id={noteHelpId} className={errors.note ? styles.error : styles.hint}>
+            {errors.note ?? (canDecline ? 'Needed to decline. Included in the email.' : 'Included in the email and the history.')}
+          </p>
+        </div>
+        {forward && (
+          <Button type="submit" block loading={busy === forward} disabled={busy !== null && busy !== forward}>
+            {RETURN_MOVE_LABELS[forward]}
+          </Button>
+        )}
+        {canDecline && (
+          <Button
+            variant="secondary"
+            block
+            loading={busy === 'rejected'}
+            disabled={busy !== null && busy !== 'rejected'}
+            onClick={() => void move('rejected')}
+          >
+            {RETURN_MOVE_LABELS.rejected}
+          </Button>
+        )}
+      </form>
+    </section>
+  );
+}
+
+function successToast(request: ReturnRequest, to: ReturnStatus, restocked: number) {
+  switch (to) {
+    case 'approved':
+      return { title: 'Return approved', description: `We've emailed ${request.email} the ${request.method === 'pickup' ? 'pickup details' : 'label'}.` };
+    case 'received':
+      return {
+        title: 'Marked as received',
+        description: restocked > 0 ? `${restocked} ${restocked === 1 ? 'item is' : 'items are'} back in stock.` : 'Nothing was restocked.',
+      };
+    case 'refunded':
+      return { title: 'Refund issued', description: `${formatMoney(request.refund)} is on its way to ${request.email}.` };
+    case 'rejected':
+      return { tone: 'info' as const, title: 'Return declined', description: `We've emailed ${request.email} your message.` };
+    default:
+      return { title: `Marked as ${RETURN_STATUS_LABELS[to].toLowerCase()}` };
+  }
+}
