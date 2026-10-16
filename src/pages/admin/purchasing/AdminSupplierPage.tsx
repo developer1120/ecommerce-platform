@@ -103,3 +103,108 @@ function OrderBuilder({ detail }: { detail: SupplierDetail }) {
       const check = checkOrderQuantity(text);
       if (check.ok) lines.push({ variantId: row.variantId, quantity: check.quantity });
       else found[row.variantId] = check.error;
+    }
+    if (Object.keys(found).length === 0 && lines.length === 0) found.form = 'Enter a quantity for at least one item';
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+    setSaving(true);
+    try {
+      const order = await createPurchaseOrder(token!, { supplier: supplier.name, lines, note });
+      toast({ title: `Draft ${order.id} saved`, description: 'Check it over, then send it to the maker.' });
+      navigate(purchaseOrderPath(order.id));
+    } catch (error) {
+      toast({ tone: 'error', title: "Couldn't save the order", description: isApiError(error) ? error.message : undefined });
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className={styles.panel} onSubmit={handleSubmit} noValidate aria-labelledby="builder-title">
+      <h3 id="builder-title" className={styles.legend}>
+        <HeadingIcon icon={ClipboardPlus} />
+        New purchase order
+      </h3>
+      <p className={styles.muted}>
+        {suggestions.length > 0
+          ? `${suggestions.length} ${suggestions.length === 1 ? 'item needs' : 'items need'} reordering; their quantities are filled in to cover ${supplier.leadDays} days of lead time and a month of sales.`
+          : 'Nothing needs reordering right now. Enter quantities to order anyway.'}
+      </p>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th scope="col">Item</th>
+              <th scope="col">In stock</th>
+              <th scope="col">Sold, 30 days</th>
+              <th scope="col">On order</th>
+              <th scope="col">Unit cost</th>
+              <th scope="col">Order</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const suggestion = suggested.get(row.variantId);
+              const label = `${row.productName}${row.variantLabel ? `, ${row.variantLabel}` : ''}`;
+              return (
+                <tr key={row.variantId}>
+                  <th scope="row">
+                    <span className={styles.productName}>{row.productName}</span>
+                    <span className={styles.muted}>
+                      {row.variantLabel ? `${row.variantLabel} · ` : ''}
+                      {row.sku}
+                    </span>
+                    {suggestion && <Badge tone={row.level === 'out' ? 'sale' : 'warning'}>{suggestion.reason}</Badge>}
+                  </th>
+                  <td className={styles.number}>{row.stock}</td>
+                  <td className={styles.number}>{row.sold30}</td>
+                  <td className={styles.number}>{onOrder[row.variantId] || '—'}</td>
+                  <td className={styles.number}>{formatMoney(costs[row.variantId] ?? 0)}</td>
+                  <td>
+                    <input
+                      className={styles.cellInput}
+                      inputMode="numeric"
+                      aria-label={`Units of ${label}`}
+                      aria-invalid={errors[row.variantId] ? true : undefined}
+                      aria-describedby={errors[row.variantId] ? `qty-error-${row.variantId}` : undefined}
+                      value={quantities[row.variantId] ?? ''}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setQuantities((current) => ({ ...current, [row.variantId]: value }));
+                        if (errors[row.variantId] || errors.form) setErrors({});
+                      }}
+                    />
+                    {errors[row.variantId] && (
+                      <span id={`qty-error-${row.variantId}`} className={styles.error}>
+                        {errors[row.variantId]}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className={styles.stockNote} aria-live="polite">
+        {units} {units === 1 ? 'unit' : 'units'} · {formatMoney(cost)}
+        {units > 0 && units < supplier.minUnits && ` · below ${supplier.name}'s minimum of ${supplier.minUnits}`}
+      </p>
+      <div className={styles.field}>
+        <label htmlFor={noteId} className={styles.label}>
+          Note to the maker (optional)
+        </label>
+        <textarea id={noteId} className={styles.textarea} rows={2} maxLength={PO_NOTE_MAX} value={note} onChange={(event) => setNote(event.target.value)} />
+      </div>
+      {errors.form && (
+        <p className={styles.error} role="alert">
+          {errors.form}
+        </p>
+      )}
+      <div>
+        <Button type="submit" loading={saving} leadingIcon={<ClipboardPlus />}>
+          Save draft
+        </Button>
+      </div>
+    </form>
+  );
+}
