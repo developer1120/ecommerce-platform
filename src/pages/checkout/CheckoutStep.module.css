@@ -1,0 +1,156 @@
+.form {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.title {
+  font-size: var(--text-2xl);
+}
+
+.group {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  margin-bottom: var(--space-4);
+  padding: 0;
+  color: var(--color-ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.row2,
+.row3 {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.row2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.row3 {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  align-items: start;
+}
+
+.note {
+  color: var(--color-ink-muted);
+  font-size: var(--text-xs);
+}
+
+.submit {
+  justify-self: end;
+}
+
+.addressCard {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.addressCard address {
+  font-style: normal;
+  line-height: var(--leading-body);
+}
+
+.addressLabel {
+  margin-bottom: var(--space-1);
+  color: var(--color-ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editCell {
+  align-self: start;
+}
+
+.editLink {
+  align-self: start;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .row2,
+  .row3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .submit {
+    justify-self: stretch;
+  }
+}
+
+.addressLine {
+  display: block;
+}
+
+.options {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.option:hover {
+  border-color: var(--color-line-strong);
+}
+
+.option:has(:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-sunken);
+}
+
+.option input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.optionText {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.optionName {
+  font-weight: 700;
+}
+
+.optionDetail {
+  color: var(--color-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.optionPrice {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.demoNote {
+  display: flex;
+  gap: var(--space-3);
