@@ -1,0 +1,160 @@
+.page {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.hero {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  padding: var(--space-12) var(--space-10);
+  border-radius: var(--radius-xl);
+  background: var(--tint-blush);
+}
+
+.eyebrow {
+  color: var(--color-ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eyebrow a {
+  color: inherit;
+}
+
+.title {
+  font-size: var(--text-4xl);
+  overflow-wrap: anywhere;
+}
+
+.lede {
+  max-width: 60ch;
+  color: var(--color-ink-muted);
+  font-size: var(--text-lg);
+}
+
+.muted {
+  color: var(--color-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.smallTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xl);
+}
+
+/* List */
+
+.list {
+  display: grid;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.cardArt {
+  min-height: 14rem;
+}
+
+.cardText {
+  display: grid;
+  align-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+.cardTitle {
+  font-size: var(--text-2xl);
+}
+
+.cardLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The whole card is clickable through the title link. */
+.cardLink::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+.card:has(.cardLink:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.cardLink:focus-visible {
+  outline: none;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.facts > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.facts svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+.priceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.price {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+}
+
+.badge {
+  margin-left: var(--space-2);
+}
+
+/* Detail */
+
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  align-items: start;
+  gap: var(--space-8);
+}
+
+.detailMain {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.detailArt {

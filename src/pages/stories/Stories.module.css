@@ -233,3 +233,238 @@
   margin-top: var(--space-4);
   font-size: var(--text-2xl);
 }
+
+.bodyList {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: 1.25em;
+}
+
+.quote {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--tint-lilac);
+}
+
+.quote blockquote {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-snug);
+}
+
+.quote figcaption {
+  color: var(--color-ink-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.quoteMark {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--color-primary);
+}
+
+.shopBlock {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  font-size: var(--text-md);
+}
+
+.makerNote {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  width: min(100%, 44rem);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--tint-sage);
+}
+
+.pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.pagerLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pagerLink:hover {
+  border-color: var(--color-ink);
+}
+
+.pagerLink > span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.pagerLink > svg {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.pagerOlder {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+/* About */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.stat dt {
+  color: var(--color-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.stat dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  line-height: 1;
+}
+
+.values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.value {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.valueIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.valueIcon > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Maker */
+
+.makerHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.makerIntro {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.makerArt {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-xl);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 600;
+}
+
+.facts > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.facts svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@media (max-width: 860px) {
+  .featureCard,
+  .makerHeader {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .featureCard .cardArt {
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+  }
+
+  .featureCard .cardText {
+    padding: var(--space-5);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: var(--space-8) var(--space-5);
+  }
+
+  .title,
+  .featureCard .cardTitle {
+    font-size: var(--text-3xl);
+  }
+
+  .stats,
+  .pager {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .articleBody,
+  .prose {
+    font-size: var(--text-md);
+  }
+
+  .quote blockquote {
+    font-size: var(--text-xl);
+  }
+}
