@@ -96,3 +96,101 @@ describe('cartReducer', () => {
     expect(add(EMPTY_CART, mugLine, Number.NaN)).toBe(EMPTY_CART);
   });
 
+  it('drops a line when re-adding finds its stock gone', () => {
+    const state = add(add(EMPTY_CART, chalkVase, 1), { ...chalkVase, stock: 0 });
+    expect(state.lines).toEqual([]);
+  });
+
+  it('sets a quantity within the limits', () => {
+    const state = add(EMPTY_CART, chalkVase, 1);
+    expect(cartReducer(state, { type: 'setQuantity', variantId: chalkVase.variantId, quantity: 2 }).lines[0]!.quantity).toBe(2);
+    expect(cartReducer(state, { type: 'setQuantity', variantId: chalkVase.variantId, quantity: 9 }).lines[0]!.quantity).toBe(3);
+    expect(cartReducer(state, { type: 'setQuantity', variantId: chalkVase.variantId, quantity: 2.7 }).lines[0]!.quantity).toBe(2);
+  });
+
+  it('removes a line when its quantity is set to zero', () => {
+    const state = add(EMPTY_CART, chalkVase, 2);
+    expect(cartReducer(state, { type: 'setQuantity', variantId: chalkVase.variantId, quantity: 0 }).lines).toEqual([]);
+  });
+
+  it('ignores quantity changes for unknown lines or bad numbers, keeping the same state', () => {
+    const state = add(EMPTY_CART, chalkVase, 2);
+    expect(cartReducer(state, { type: 'setQuantity', variantId: 'nope', quantity: 2 })).toBe(state);
+    expect(cartReducer(state, { type: 'setQuantity', variantId: chalkVase.variantId, quantity: Number.NaN })).toBe(state);
+    expect(cartReducer(state, { type: 'setQuantity', variantId: chalkVase.variantId, quantity: 2 })).toBe(state);
+  });
+
+  it('removes a line and clears the bag', () => {
+    const state = add(add(EMPTY_CART, chalkVase), mugLine);
+    expect(cartReducer(state, { type: 'remove', variantId: chalkVase.variantId }).lines.map((l) => l.variantId)).toEqual([
+      mugLine.variantId,
+    ]);
+    expect(cartReducer(state, { type: 'remove', variantId: 'nope' })).toBe(state);
+    expect(cartReducer(state, { type: 'clear' })).toEqual(EMPTY_CART);
+    expect(cartReducer(EMPTY_CART, { type: 'clear' })).toBe(EMPTY_CART);
+  });
+});
+
+describe('cart totals', () => {
+  const state = add(add(EMPTY_CART, mugLine, 2), largeBoard, 1);
+
+  it('counts items and adds up the subtotal in cents', () => {
+    expect(itemCount(state)).toBe(3);
+    expect(lineTotal(state.lines[0]!)).toBe(7680);
+    expect(subtotal(state)).toBe(7680 + 6800);
+  });
+
+  it('adds up sale savings', () => {
+    expect(savings(state)).toBe((4800 - 3840) * 2);
+    expect(savings(EMPTY_CART)).toBe(0);
+  });
+
+  it('describes chosen options', () => {
+    expect(describeOptions({ Color: 'Oat', Size: 'M' })).toBe('Oat / M');
+    expect(describeOptions({})).toBe('');
+  });
+});
+
+describe('cart storage', () => {
+  const stored = (lines: unknown[], version = CART_STORAGE_VERSION) => JSON.stringify({ version, lines });
+
+  it('round-trips through localStorage', () => {
+    const state = add(add(EMPTY_CART, mugLine, 2), largeBoard);
+    saveCart(state);
+    expect(loadCart()).toEqual(state);
+  });
+
+  it('removes the key when the bag is empty', () => {
+    saveCart(add(EMPTY_CART, mugLine));
+    saveCart(EMPTY_CART);
+    expect(localStorage.getItem(CART_STORAGE_KEY)).toBeNull();
+  });
+
+  it('starts empty with nothing stored, broken JSON or another version', () => {
+    expect(loadCart()).toEqual(EMPTY_CART);
+    localStorage.setItem(CART_STORAGE_KEY, '{oops');
+    expect(loadCart()).toEqual(EMPTY_CART);
+    expect(parseStoredCart(stored([{ ...mugLine, quantity: 1 }], 99))).toEqual(EMPTY_CART);
+  });
+
+  it('drops damaged lines and keeps the good ones', () => {
+    const good = { ...mugLine, quantity: 2 };
+    const state = parseStoredCart(
+      stored([good, { ...good, variantId: 42 }, { ...good, quantity: 0 }, { ...good, unitPrice: 12.5 }, 'junk', null]),
+    );
+    expect(state.lines).toEqual([good]);
+  });
+
+  it('caps stored quantities that exceed the limits', () => {
+    const state = parseStoredCart(stored([{ ...chalkVase, quantity: 40 }]));
+    expect(state.lines[0]!.quantity).toBe(3);
+  });
+
+  it('validates every field of a line', () => {
+    const good = { ...mugLine, quantity: 1 };
+    expect(isCartLine(good)).toBe(true);
+    expect(isCartLine({ ...good, options: { Glaze: 3 } })).toBe(false);
+    expect(isCartLine({ ...good, art: { tint: 'lilac' } })).toBe(false);
+    expect(isCartLine({ ...good, compareAtPrice: '48' })).toBe(false);
+  });
+});

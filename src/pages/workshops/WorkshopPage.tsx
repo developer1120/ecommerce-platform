@@ -126,3 +126,131 @@ function BookingPanel({ workshop, sessions, onStale }: BookingPanelProps) {
     return (
       <section className={styles.panel} aria-labelledby="booked-title" role="status">
         <CircleCheck className={styles.doneIcon} aria-hidden="true" />
+        <h2 id="booked-title" className={styles.smallTitle}>
+          You're booked
+        </h2>
+        <p>
+          {booked.places} {booked.places === 1 ? 'place' : 'places'} on <strong>{formatSessionDate(session.startsAt)}</strong>,{' '}
+          {formatSessionTime(session.startsAt, workshop.durationMinutes)}. Reference <strong>{booked.id}</strong>.
+        </p>
+        <p className={styles.muted}>
+          We've emailed the details to {booked.email}. {formatMoney(booked.total)} to pay at the studio on the day.
+        </p>
+        <Button
+          variant="secondary"
+          leadingIcon={<CalendarPlus />}
+          onClick={() => downloadText(`tanelt-${booked.id}.ics`, bookingCalendar(booked, workshop, session), 'text/calendar')}
+        >
+          Add to calendar
+        </Button>
+        {booked.customerId && <Link to="/account/workshops">See your bookings</Link>}
+      </section>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <section className={styles.panel} aria-labelledby="booking-title">
+        <h2 id="booking-title" className={styles.smallTitle}>
+          No dates right now
+        </h2>
+        <p className={styles.muted}>
+          New dates are added every month. <Link to="/help/contact?topic=other">Ask us</Link> to hear when this one runs again.
+        </p>
+      </section>
+    );
+  }
+
+  const chosen = sessions.find((session) => session.id === sessionId);
+  const left = chosen?.placesLeft ?? 0;
+  const placeOptions = Array.from({ length: Math.max(1, Math.min(MAX_PLACES, left)) }, (_, index) => index + 1);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setFormError(null);
+    const form = { sessionId, name, email, places };
+    const found = validateBooking(form, left);
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+    setBooking(true);
+    try {
+      setBooked(await bookWorkshop(token, form));
+    } catch (error) {
+      setFormError(isApiError(error) ? error.message : "We couldn't book your places. Try again in a moment.");
+      // Someone may have taken the last places; show the latest numbers. The choice and this message stay.
+      if (isApiError(error) && error.code === 'CONFLICT') onStale();
+    } finally {
+      setBooking(false);
+    }
+  }
+
+  return (
+    <form className={styles.panel} onSubmit={handleSubmit} noValidate aria-labelledby="booking-title">
+      <h2 id="booking-title" className={styles.smallTitle}>
+        <HeadingIcon icon={Ticket} />
+        Book a place
+      </h2>
+      <p>
+        <span className={styles.price}>{formatMoney(workshop.price)}</span> <span className={styles.muted}>a place, paid on the day</span>
+      </p>
+      <fieldset className={styles.sessions} aria-describedby={errors.sessionId ? 'session-error' : undefined}>
+        <legend className={styles.legend}>Choose a date</legend>
+        {sessions.map((session) => {
+          const label = availabilityLabel(session.placesLeft);
+          return (
+            <label key={session.id} className={styles.session} data-disabled={session.placesLeft === 0 || undefined}>
+              <input
+                type="radio"
+                name="session"
+                value={session.id}
+                checked={sessionId === session.id}
+                disabled={session.placesLeft === 0}
+                onChange={() => {
+                  setSessionId(session.id);
+                  setPlaces((current) => Math.min(current, Math.max(1, session.placesLeft)));
+                  setErrors({});
+                }}
+              />
+              <span>
+                <span className={styles.sessionDate}>{formatSessionDate(session.startsAt)}</span>
+                <span className={styles.muted}>{formatSessionTime(session.startsAt, workshop.durationMinutes)}</span>
+                {label && <span className={styles.sessionNote}>{label}</span>}
+              </span>
+            </label>
+          );
+        })}
+        {errors.sessionId && (
+          <p id="session-error" className={styles.error}>
+            {errors.sessionId}
+          </p>
+        )}
+      </fieldset>
+      <SelectField
+        label="Places"
+        value={String(places)}
+        options={placeOptions.map((count) => ({ value: String(count), label: String(count) }))}
+        error={errors.places}
+        onChange={(event) => setPlaces(Number(event.target.value))}
+      />
+      <TextField label="Your name" autoComplete="name" value={name} error={errors.name} onChange={(event) => setName(event.target.value)} />
+      <TextField
+        label="Email"
+        type="email"
+        autoComplete="email"
+        value={email}
+        error={errors.email}
+        hint="For your confirmation and any changes to the date."
+        onChange={(event) => setEmail(event.target.value)}
+      />
+      {formError && (
+        <p className={styles.formError} role="alert">
+          {formError}
+        </p>
+      )}
+      <Button type="submit" block size="lg" loading={booking} disabled={!chosen}>
+        {`Book ${places} ${places === 1 ? 'place' : 'places'} · ${formatMoney(bookingTotal(workshop, places))}`}
+      </Button>
+      <p className={styles.muted}>Free to cancel up to {CANCEL_CUTOFF_HOURS} hours before.</p>
+    </form>
+  );
+}
