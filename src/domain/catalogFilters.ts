@@ -110,3 +110,115 @@ export function activeFilterCount(filters: CatalogFilters): number {
 
 function variantsInColor(product: Product, color: string) {
   return product.variants.filter((variant) => Object.values(variant.options).includes(color));
+}
+
+type Facet = 'types' | 'colors' | 'prices' | 'inStock' | 'minRating';
+
+/** Tests one product against every filter except `skip`, which facet counts leave out. */
+function matches(product: Product, filters: CatalogFilters, skip?: Facet): boolean {
+  if (skip !== 'types' && filters.types.length > 0 && !filters.types.includes(product.type)) return false;
+
+  if (skip !== 'colors' && filters.colors.length > 0) {
+    // With "in stock only", the color itself must be in stock, not just some other color.
+    const ok = filters.colors.some((color) => {
+      const variants = variantsInColor(product, color);
+      return filters.inStock ? variants.some((variant) => variant.stock > 0) : variants.length > 0;
+    });
+    if (!ok) return false;
+  }
+
+  if (skip !== 'prices' && filters.prices.length > 0) {
+    const price = priceRange(product).min;
+    const inBand = PRICE_BANDS.some(
+      (band) => filters.prices.includes(band.value) && price >= band.min && price < band.max,
+    );
+    if (!inBand) return false;
+  }
+
+  if (skip !== 'inStock' && filters.inStock && !product.variants.some((variant) => variant.stock > 0)) return false;
+
+  if (skip !== 'minRating' && filters.minRating !== null && product.rating.average < filters.minRating) return false;
+
+  return true;
+}
+
+export function applyFilters(products: Product[], filters: CatalogFilters): Product[] {
+  return products.filter((product) => matches(product, filters));
+}
+
+export function sortProducts(products: Product[], sort: SortKey): Product[] {
+  const indexed = products.map((product, index) => ({ product, index }));
+  const compare: Record<SortKey, (a: (typeof indexed)[number], b: (typeof indexed)[number]) => number> = {
+    featured: () => 0,
+    newest: (a, b) => b.product.addedAt.localeCompare(a.product.addedAt),
+    'price-asc': (a, b) => priceRange(a.product).min - priceRange(b.product).min,
+    'price-desc': (a, b) => priceRange(b.product).min - priceRange(a.product).min,
+    rating: (a, b) => b.product.rating.average - a.product.rating.average || b.product.rating.count - a.product.rating.count,
+  };
+  // Ties keep the catalog order, so results never shuffle between renders.
+  return indexed.sort((a, b) => compare[sort](a, b) || a.index - b.index).map(({ product }) => product);
+}
+
+export function filterAndSort(products: Product[], filters: CatalogFilters): Product[] {
+  return sortProducts(applyFilters(products, filters), filters.sort);
+}
+
+export interface FacetOption<T extends string = string> {
+  value: T;
+  label: string;
+  count: number;
+  swatch?: string;
+}
+
+export interface Facets {
+  types: FacetOption[];
+  colors: FacetOption[];
+  prices: FacetOption<PriceBand>[];
+  inStock: number;
+  ratings: { value: MinRating; count: number }[];
+}
+
+/**
+ * The choices a collection offers, each with how many products it would show.
+ * Counts apply every other active filter, so they predict the result of a click.
+ */
+export function buildFacets(products: Product[], filters: CatalogFilters): Facets {
+  const count = (facet: Facet, test: (product: Product) => boolean) =>
+    products.filter((product) => matches(product, filters, facet) && test(product)).length;
+
+  const types = unique(products.map((product) => product.type)).sort();
+
+  const swatches = new Map<string, string | undefined>();
+  for (const product of products) {
+    for (const option of product.options) {
+      if (!option.values.some((value) => value.swatch)) continue;
+      for (const value of option.values) if (!swatches.has(value.value)) swatches.set(value.value, value.swatch);
+    }
+  }
+
+  return {
+    types: types.map((type) => ({ value: type, label: type, count: count('types', (p) => p.type === type) })),
+    colors: [...swatches]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([color, swatch]) => ({
+        value: color,
+        label: color,
+        swatch,
+        count: count('colors', (p) => variantsInColor(p, color).some((v) => !filters.inStock || v.stock > 0)),
+      })),
+    prices: PRICE_BANDS.map((band) => ({
+      value: band.value,
+      label: band.label,
+      count: count('prices', (p) => priceRange(p).min >= band.min && priceRange(p).min < band.max),
+    })),
+    inStock: count('inStock', (p) => p.variants.some((variant) => variant.stock > 0)),
+    ratings: RATING_THRESHOLDS.map((threshold) => ({
+      value: threshold,
+      count: count('minRating', (p) => p.rating.average >= threshold),
+    })),
+  };
+}
+
+export function priceBandLabel(band: PriceBand): string {
+  return PRICE_BANDS.find((candidate) => candidate.value === band)?.label ?? band;
+}
