@@ -109,3 +109,115 @@ export const EMPTY_DRAFT: ProductDraft = {
   tags: '',
   status: 'draft',
   tint: 'lilac',
+  motif: 'vessel',
+  optionsText: '',
+  variants: [{ id: '', options: {}, stock: '0', price: '' }],
+};
+
+/** Rebuilds the variant rows for new options, keeping stock typed for combinations that remain. */
+export function variantsForOptions(options: ProductOption[], current: VariantDraft[]): VariantDraft[] {
+  return combinations(options).map((combo) => {
+    const key = JSON.stringify(combo);
+    const kept = current.find((variant) => JSON.stringify(variant.options) === key);
+    return kept ?? { id: '', options: combo, stock: '0', price: '' };
+  });
+}
+
+function wholeNumber(text: string): number | null {
+  return /^\d+$/.test(text.trim()) ? Number(text.trim()) : null;
+}
+
+/**
+ * Checks a draft and, if it is sound, builds the product to save.
+ * `others` are the rest of the catalog, for the slug check.
+ */
+export function buildProduct(
+  draft: ProductDraft,
+  existing: Product | null,
+  others: Product[],
+  now: Date,
+): { product: Product; errors?: undefined } | { product?: undefined; errors: DraftErrors } {
+  const errors: DraftErrors = {};
+  const name = draft.name.trim();
+  const slug = slugify(draft.slug || draft.name);
+  if (!name) errors.name = 'Enter a product name';
+  if (!slug) errors.slug = 'Enter a web address made of letters, numbers and dashes';
+  else if (others.some((product) => product.slug === slug && product.id !== existing?.id)) {
+    errors.slug = `Another product already uses /product/${slug}`;
+  }
+  if (!draft.maker.trim()) errors.maker = 'Enter the maker';
+  if (!draft.type.trim()) errors.type = 'Enter a product type, such as Tableware';
+  if (!draft.summary.trim()) errors.summary = 'Write a one-line summary';
+
+  const price = parseMoney(draft.price);
+  if (price === null || price <= 0) errors.price = 'Enter a price, like 38.00';
+  let compareAtPrice: Cents | undefined;
+  if (draft.compareAtPrice.trim()) {
+    const parsed = parseMoney(draft.compareAtPrice);
+    if (parsed === null) errors.compareAtPrice = 'Enter the previous price, like 48.00, or leave it empty';
+    else if (price !== null && parsed <= price) errors.compareAtPrice = 'The previous price must be higher than the price';
+    else compareAtPrice = parsed;
+  }
+
+  // Options are fixed once a product exists, so carts and past orders keep pointing at real variants.
+  const options = existing ? existing.options : parseOptions(draft.optionsText);
+  if (typeof options === 'string') errors.optionsText = options;
+
+  const variants: Variant[] = [];
+  draft.variants.forEach((row, index) => {
+    const stock = wholeNumber(row.stock);
+    const variantPrice = row.price.trim() ? parseMoney(row.price) : undefined;
+    if (stock === null) errors.variants = `Row ${index + 1}: stock must be a whole number`;
+    else if (variantPrice === null || variantPrice === 0) errors.variants = `Row ${index + 1}: enter a price like 44.00 or leave it empty`;
+    // The id uses the whole (unique) address; the SKU is a short label for the stockroom.
+    const base = existing?.id ?? slug;
+    const code = base.toUpperCase().slice(0, 12).replace(/-+$/, '');
+    const suffix = Object.values(row.options)
+      .map((value) => value.toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 4))
+      .join('-');
+    const sku = suffix ? `${code}-${suffix}` : code;
+    variants.push({
+      id: row.id || (suffix ? `${base}-${suffix.toLowerCase()}` : base),
+      sku: existing?.variants.find((variant) => variant.id === row.id)?.sku ?? sku,
+      options: row.options,
+      stock: stock ?? 0,
+      ...(variantPrice ? { price: variantPrice } : {}),
+    });
+  });
+  if (variants.length === 0) errors.variants = 'Add at least one variant';
+  if (new Set(variants.map((variant) => variant.id)).size !== variants.length) {
+    errors.variants = 'Two variants would share a code; make the option values more distinct';
+  }
+  const elsewhere = new Set(others.filter((other) => other.id !== existing?.id).flatMap((other) => other.variants.map((variant) => variant.id)));
+  if (variants.some((variant) => elsewhere.has(variant.id))) {
+    errors.variants = 'Another product already uses these variant codes; choose a different web address';
+  }
+
+  if (Object.keys(errors).length > 0) return { errors };
+
+  const product: Product = {
+    id: existing?.id ?? slug,
+    slug,
+    name,
+    maker: draft.maker.trim(),
+    department: draft.department,
+    type: draft.type.trim(),
+    summary: draft.summary.trim(),
+    description: draft.description.trim() || draft.summary.trim(),
+    details: draft.details
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean),
+    price: price!,
+    ...(compareAtPrice !== undefined && { compareAtPrice }),
+    tags: [...new Set(draft.tags.split(',').map((tag) => tag.trim().toLowerCase()).filter(Boolean))],
+    rating: existing?.rating ?? { average: 0, count: 0 },
+    addedAt: existing?.addedAt ?? now.toISOString().slice(0, 10),
+    art: { tint: draft.tint, motif: draft.motif },
+    options: options as ProductOption[],
+    variants,
+    status: draft.status,
+    updatedAt: now.toISOString(),
+  };
+  return { product };
+}
