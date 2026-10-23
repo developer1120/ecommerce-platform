@@ -1,0 +1,115 @@
+/*
+ * Tanelt design tokens.
+ *
+ * Every color is written once with light-dark(): the first value is the light
+ * theme, the second the dark one. color-scheme on :root picks which applies, so
+ * following the OS needs no media query, and data-theme pins a choice.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --color-canvas: light-dark(#f6f3fa, #160e1f);
+  --color-surface: light-dark(#ffffff, #21162d);
+  --color-surface-sunken: light-dark(#efeaf5, #1b1225);
+  --color-overlay: light-dark(rgb(43 26 58 / 0.42), rgb(8 4 12 / 0.64));
+
+  /* Text */
+  --color-ink: light-dark(#2b1a3a, #f1ebf7);
+  --color-ink-muted: light-dark(#5e4e6e, #c3b6d1);
+  --color-ink-subtle: light-dark(#6f607d, #a496b3);
+
+  /* Lines */
+  --color-line: light-dark(#e4deec, #352744);
+  --color-line-strong: light-dark(#cfc5db, #4a3a5b);
+
+  /* Brand. Lime is a fill, never a text color: it always carries dark ink. */
+  --color-primary: light-dark(#2b1a3a, #c8f169);
+  --color-primary-hover: light-dark(#40294f, #b5e24c);
+  --color-on-primary: light-dark(#f6f3fa, #160e1f);
+  --color-accent: light-dark(#c8f169, #c8f169);
+  --color-accent-hover: light-dark(#b5e24c, #b5e24c);
+  --color-on-accent: light-dark(#2b1a3a, #2b1a3a);
+  --color-focus: light-dark(#7c3aed, #c8f169);
+
+  /* Status */
+  --color-sale: light-dark(#b4235a, #b4235a);
+  --color-on-sale: light-dark(#ffffff, #ffffff);
+  --color-sale-text: light-dark(#b4235a, #f58bb3);
+  --color-success: light-dark(#2f6b2a, #9bd58f);
+  --color-warning: light-dark(#8a5300, #f2c26b);
+  --color-danger: light-dark(#b42318, #ff9b8f);
+
+  /* Soft tints behind category tiles and product imagery */
+  --tint-lilac: light-dark(#e9ddf7, #33244a);
+  --tint-sage: light-dark(#ddefc0, #263a1e);
+  --tint-blush: light-dark(#f7dce6, #42202f);
+  --tint-sand: light-dark(#f3e8d6, #3a2e1e);
+
+  /* Typography */
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+  --font-sans: 'Manrope Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: clamp(2.5rem, 5vw + 1rem, 4rem);
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-body: 1.6;
+
+  /* Spacing (4px steps) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Shape */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* Depth: soft and tinted with the ink, never grey */
+  --shadow-soft: 0 1px 2px rgb(43 26 58 / 0.05), 0 6px 20px rgb(43 26 58 / 0.06);
+  --shadow-lifted: 0 2px 4px rgb(43 26 58 / 0.06), 0 18px 48px rgb(43 26 58 / 0.14);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-base: 220ms;
+  --duration-slow: 380ms;
+
+  /* Layout */
+  --container-max: 1240px;
+  --gutter: clamp(1rem, 3vw, 2rem);
+  --header-height: 4.5rem;
+  --bottom-nav-height: 4rem;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.25);
+  --shadow-lifted: 0 2px 4px rgb(0 0 0 / 0.35), 0 18px 48px rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.25);
+    --shadow-lifted: 0 2px 4px rgb(0 0 0 / 0.35), 0 18px 48px rgb(0 0 0 / 0.45);
+  }
+}
