@@ -149,3 +149,154 @@ describe('dialogs and panels', () => {
   it('the search panel with suggestions', async () => {
     const user = userEvent.setup();
     renderRoute('/');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search the shop' }), 'lin');
+    await expectAccessible(() => screen.findAllByRole('option'));
+  });
+
+  it('the filter sheet and bottom bar on a phone', async () => {
+    const user = userEvent.setup();
+    setViewportWidth(375);
+    renderRoute('/shop/home');
+    await main().findAllByRole('article');
+    expect(await axeViolations()).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    await expectAccessible(() => screen.findByRole('dialog', { name: 'Filters' }));
+  });
+
+  it('a form full of errors', async () => {
+    const user = userEvent.setup();
+    fillBag();
+    renderRoute('/checkout');
+    await user.click(await main().findByRole('button', { name: /Continue/ }));
+    await expectAccessible(() => main().findByRole('alert'));
+  });
+});
+
+describe('checkout', () => {
+  it('address, delivery and payment steps', async () => {
+    fillBag();
+    const view = renderRoute('/checkout');
+    await expectAccessible(() => heading('Checkout'));
+    view.unmount();
+
+    readyToPay();
+    const delivery = renderRoute('/checkout/delivery');
+    await expectAccessible(() => main().findByRole('group', { name: /Delivery speed/ }));
+    delivery.unmount();
+
+    renderRoute('/checkout/payment');
+    await expectAccessible(() => main().findByRole('heading', { level: 2, name: /Payment/ }));
+  });
+
+  it('review and confirmation', async () => {
+    readyToPay();
+    const view = renderRoute('/checkout/review');
+    await expectAccessible(() => main().findByRole('button', { name: /Place order/ }));
+    view.unmount();
+
+    const placed = await order();
+    renderRoute(`/orders/${placed.id}`);
+    await expectAccessible(() => heading(`Order ${placed.id}`));
+  });
+});
+
+describe('account', () => {
+  it('sign in and sign up', async () => {
+    const view = renderRoute('/account/sign-in');
+    await expectAccessible(() => heading('Sign in'));
+    view.unmount();
+    renderRoute('/account/sign-up');
+    await expectAccessible(() => heading(/Create/));
+  });
+
+  it('orders, an order and details', async () => {
+    const token = await asCustomer();
+    const placed = await order(token);
+    await subscribeToRestock(bySlug('wool-boucle-cushion').variants[0]!.id, 'ada@example.com', token);
+
+    const list = renderRoute('/account/orders');
+    await expectAccessible(() => main().findByRole('link', { name: new RegExp(placed.id) }));
+    list.unmount();
+
+    const detail = renderRoute(`/account/orders/${placed.id}`);
+    await expectAccessible(() => main().findByRole('list', { name: 'Order progress' }));
+    detail.unmount();
+
+    renderRoute('/account/details');
+    await expectAccessible(() => main().findByRole('heading', { name: /restock/i }));
+  });
+});
+
+describe('admin', () => {
+  it('overview, orders and an order', async () => {
+    const admin = await asAdmin();
+    const placed = await order();
+    await updateOrderStatus(admin, placed.id, { to: 'packed', expected: 'placed', note: 'Gift wrapped' });
+
+    const overview = renderRoute('/admin');
+    await expectAccessible(() => main().findByRole('heading', { name: 'Net sales by day' }));
+    overview.unmount();
+
+    const list = renderRoute('/admin/orders');
+    await expectAccessible(() => main().findByRole('table'));
+    list.unmount();
+
+    renderRoute(`/admin/orders/${placed.id}`);
+    await expectAccessible(() => main().findByRole('button', { name: 'Mark as shipped' }));
+  });
+
+  it('products and the product form, with errors', async () => {
+    const user = userEvent.setup();
+    await asAdmin();
+    const list = renderRoute('/admin/products');
+    await expectAccessible(() => main().findByRole('table'));
+    list.unmount();
+
+    renderRoute('/admin/products/new');
+    await user.click(await main().findByRole('button', { name: 'Create product' }));
+    await expectAccessible(() => waitFor(() => expect(main().getByRole('alert')).toHaveFocus()));
+  });
+
+  it('the refusal customers see', async () => {
+    await asCustomer();
+    renderRoute('/admin');
+    await expectAccessible(() => heading('This area is for the Tanelt team'));
+  });
+});
+
+describe('page changes', () => {
+  const announcer = () => document.querySelector('[data-route-announcer]')!;
+
+  it('announces the new page, but not the first one', async () => {
+    const user = userEvent.setup();
+    renderRoute('/');
+    await main().findAllByRole('article');
+    expect(announcer()).toHaveTextContent('');
+    expect(announcer()).toHaveAttribute('aria-live', 'polite');
+
+    await user.click(within(screen.getByRole('navigation', { name: 'Departments' })).getByRole('link', { name: 'Apparel' }));
+    await waitFor(() => expect(announcer()).toHaveTextContent('Apparel · Tanelt'));
+  });
+
+  it('waits for a title that arrives once the page has loaded', async () => {
+    const user = userEvent.setup();
+    renderRoute('/shop/apparel');
+    const card = (await main().findAllByRole('link', { name: /Relaxed linen shirt/ }))[0]!;
+    await user.click(card);
+    await waitFor(() => expect(announcer()).toHaveTextContent('Relaxed linen shirt · Tanelt'));
+  });
+});
+
+describe('control names', () => {
+  it('names repeated buttons and links after what they act on', async () => {
+    const token = await asCustomer();
+    const placed = await order(token);
+    fillBag();
+    const view = renderRoute('/cart');
+    expect(await main().findByRole('button', { name: 'Remove Washed linen throw' })).toBeInTheDocument();
+    view.unmount();
+    renderRoute('/account/orders');
+    expect(await main().findByRole('link', { name: `View order ${placed.id}` })).toBeInTheDocument();
+  });
+});
