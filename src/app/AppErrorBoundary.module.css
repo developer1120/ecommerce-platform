@@ -1,0 +1,29 @@
+.crash {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  max-width: 36rem;
+  margin: 15vh auto 0;
+  padding: 0 var(--gutter);
+}
+
+.mark {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-style: italic;
+}
+
+.title {
+  font-size: var(--text-4xl);
+}
+
+.button {
+  min-height: 2.75rem;
+  padding: 0 var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
